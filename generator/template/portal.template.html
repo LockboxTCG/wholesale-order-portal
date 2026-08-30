@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lockbox TCG — Monthly Wholesale Order</title>
+<link rel="stylesheet" href="/shared/styles.css">
+</head>
+<body>
+
+<header class="header">
+  <div class="header__inner">
+    <div class="brand">
+      <img class="brand__logo" src="/shared/assets/logo-full-lockup.png" alt="Lockbox TCG">
+      <span class="brand__divider" aria-hidden="true">&times;</span>
+      <span class="customer-slot" id="customerSlot">Customer logo here</span>
+    </div>
+    <div class="order-meta">
+      <div class="order-meta__label">Monthly wholesale order</div>
+      <div class="order-meta__value" id="monthLabel"></div>
+    </div>
+  </div>
+  <div class="gold-strap"></div>
+</header>
+
+<div class="tierbar">
+  <div class="tierbar__inner">
+    <span class="tier-badge" id="tierBadge">Below minimum</span>
+
+    <div class="progress">
+      <div class="progress__label" id="progressLabel">Add items to see your tier</div>
+      <div class="progress__track">
+        <div class="progress__fill" id="progressFill" style="width:0%"></div>
+      </div>
+    </div>
+
+    <div class="stat">
+      <div class="stat__label">Order value</div>
+      <div class="stat__value" id="statGross">$0.00</div>
+    </div>
+
+    <div class="stat">
+      <div class="stat__label">You're saving</div>
+      <div class="stat__value stat__value--save" id="statSaved">$0.00</div>
+    </div>
+  </div>
+</div>
+
+<main class="catalog" id="catalog" aria-label="Product catalog"></main>
+
+<footer class="footerbar">
+  <div class="gold-strap"></div>
+  <div class="footerbar__inner">
+    <div class="footer-figures">
+      <div class="figure">
+        <div class="figure__label">Subtotal</div>
+        <div class="figure__value" id="footerSubtotal">$0.00</div>
+      </div>
+      <div class="figure">
+        <div class="figure__label">Discount applied</div>
+        <div class="figure__value figure__value--gold" id="footerDiscount">$0.00</div>
+      </div>
+      <div class="figure">
+        <div class="figure__label">Tier</div>
+        <div class="figure__value figure__value--label" id="footerTier">&mdash;</div>
+      </div>
+    </div>
+    <div class="submit-col">
+      <button type="button" class="btn btn--primary" id="submitBtn">
+        <span class="icon" aria-hidden="true"></span>
+        Submit order
+      </button>
+      <div class="submit-note" id="submitNote">Emails your order details straight to LockboxTCG</div>
+    </div>
+  </div>
+</footer>
+
+<script>window.__PORTAL_DATA__ = __PORTAL_DATA_JSON__;</script>
+<script src="/shared/app.js"></script>
+</body>
+</html>

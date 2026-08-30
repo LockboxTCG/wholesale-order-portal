@@ -1,0 +1,43 @@
+name: Generate & deploy wholesale portal
+
+on:
+  schedule:
+    # 1st of every month, 13:00 UTC (09:00 ET). Adjust to taste.
+    - cron: "0 13 1 * *"
+  workflow_dispatch: {}
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - run: npm ci
+
+      - name: Generate customer pages
+        run: node generator/generate.js
+        env:
+          GOOGLE_SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}
+          PORTAL_SLUG_SECRET: ${{ secrets.PORTAL_SLUG_SECRET }}
+          PRICING_SHEET_ID: ${{ vars.PRICING_SHEET_ID }}
+          CUSTOMER_SHEET_ID: ${{ vars.CUSTOMER_SHEET_ID }}
+          SITE_ORIGIN: ${{ vars.SITE_ORIGIN }}
+
+      - name: Upload customer link manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: customer-manifest
+          path: deploy/_manifest.csv
+
+      - name: Deploy to Vercel
+        run: |
+          npm i -g vercel@latest
+          vercel deploy --prod --yes --token="$VERCEL_TOKEN" --cwd deploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}

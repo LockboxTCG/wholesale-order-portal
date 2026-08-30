@@ -1,0 +1,7 @@
+{
+  "name": "wholesale-order-portal-deploy",
+  "private": true,
+  "dependencies": {
+    "googleapis": "^176.0.0"
+  }
+}

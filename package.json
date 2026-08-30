@@ -1,0 +1,13 @@
+{
+  "name": "wholesale-order-portal",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Generates and deploys the Lockbox TCG monthly wholesale order portal.",
+  "scripts": {
+    "generate": "node generator/generate.js",
+    "get-gmail-token": "node scripts/get-gmail-refresh-token.js"
+  },
+  "dependencies": {
+    "googleapis": "^176.0.0"
+  }
+}

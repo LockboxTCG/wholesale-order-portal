@@ -1,0 +1,8 @@
+node_modules/
+deploy/
+.vercel/
+.env
+*.env
+service-account.json
+npm-debug.log*
+.DS_Store
