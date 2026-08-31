@@ -9,15 +9,19 @@
 // Usage:
 //   GMAIL_CLIENT_ID=... GMAIL_CLIENT_SECRET=... node scripts/get-gmail-refresh-token.js
 //
-// It prints a URL — open it, sign in as management@lockboxtcg.com, approve
-// access, then paste the authorization code back into the terminal prompt.
+// Opens a browser tab for you to sign in and approve access, then captures
+// the result on a short-lived local server (Google's older copy/paste "oob"
+// flow was discontinued, so this uses the loopback redirect instead — no
+// need to register any redirect URI for a Desktop-type client).
 
-const readline = require("readline");
+const http = require("http");
+const { URL } = require("url");
 const { google } = require("googleapis");
 
 const CLIENT_ID = process.env.GMAIL_CLIENT_ID;
 const CLIENT_SECRET = process.env.GMAIL_CLIENT_SECRET;
-const REDIRECT_URI = "urn:ietf:wg:oauth:2.0:oob";
+const PORT = 53682;
+const REDIRECT_URI = `http://127.0.0.1:${PORT}`;
 
 if (!CLIENT_ID || !CLIENT_SECRET) {
   console.error("Set GMAIL_CLIENT_ID and GMAIL_CLIENT_SECRET env vars first.");
@@ -32,15 +36,25 @@ const authUrl = oAuth2Client.generateAuthUrl({
   scope: ["https://www.googleapis.com/auth/gmail.compose"]
 });
 
-console.log("\n1. Open this URL and sign in as management@lockboxtcg.com:\n");
-console.log(authUrl);
-console.log("\n2. Approve access, then copy the authorization code shown.\n");
-
-const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-rl.question("Paste the authorization code here: ", async (code) => {
-  rl.close();
+const server = http.createServer(async (req, res) => {
+  let code;
   try {
-    const { tokens } = await oAuth2Client.getToken(code.trim());
+    code = new URL(req.url, REDIRECT_URI).searchParams.get("code");
+  } catch {
+    // ignore malformed requests (e.g. favicon.ico)
+  }
+  if (!code) {
+    res.writeHead(404);
+    res.end();
+    return;
+  }
+
+  res.writeHead(200, { "Content-Type": "text/plain" });
+  res.end("Success — you can close this tab and return to the terminal.");
+  server.close();
+
+  try {
+    const { tokens } = await oAuth2Client.getToken(code);
     console.log("\nSuccess. Add these as Vercel environment variables:\n");
     console.log(`GMAIL_CLIENT_ID=${CLIENT_ID}`);
     console.log(`GMAIL_CLIENT_SECRET=${CLIENT_SECRET}`);
@@ -54,6 +68,14 @@ rl.question("Paste the authorization code here: ", async (code) => {
     }
   } catch (err) {
     console.error("Failed to exchange authorization code:", err.message);
-    process.exit(1);
+    process.exitCode = 1;
+  } finally {
+    process.exit();
   }
+});
+
+server.listen(PORT, () => {
+  console.log("\n1. Open this URL and sign in as management@lockboxtcg.com:\n");
+  console.log(authUrl);
+  console.log("\n2. Approve access — your browser will redirect back here automatically.\n");
 });
