@@ -157,16 +157,23 @@
     if (els.submitBtn.disabled || state.submitting) return;
 
     let grossValue = 0;
+    Object.keys(rowRefs).forEach((key) => {
+      grossValue += (state.qty[key] || 0) * rowRefs[key].msrp;
+    });
+    const tier = resolveTier(grossValue);
+
+    let netSubtotal = 0;
     const items = [];
     Object.keys(rowRefs).forEach((key) => {
       const ref = rowRefs[key];
       const q = state.qty[key] || 0;
-      grossValue += q * ref.msrp;
-      if (q > 0) {
-        items.push({ name: ref.name, qty: q, msrp: ref.msrp });
-      }
+      if (q <= 0) return;
+      const unitPrice = tier ? ref.tiers[tier] : ref.msrp;
+      const lineTotal = q * unitPrice;
+      netSubtotal += lineTotal;
+      items.push({ name: ref.name, qty: q, msrp: ref.msrp, unitPrice, lineTotal });
     });
-    const tier = resolveTier(grossValue);
+    const saved = Math.max(0, grossValue - netSubtotal);
 
     state.submitting = true;
     state.error = null;
@@ -181,7 +188,10 @@
           customerName: DATA.customerName,
           monthLabel: DATA.monthLabel,
           tier,
-          items
+          items,
+          grossValue,
+          netSubtotal,
+          saved
         })
       });
       const body = await res.json().catch(() => ({}));

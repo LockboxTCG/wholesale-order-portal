@@ -6,11 +6,17 @@ function fmt(n) {
   return "$" + n.toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+// RFC 2047 encoded-word: message headers (unlike the body) are ASCII-only by
+// default, so a raw em dash in the Subject line renders as mojibake in Gmail.
+function encodeHeader(str) {
+  return "=?UTF-8?B?" + Buffer.from(str, "utf8").toString("base64") + "?=";
+}
+
 function buildEmail({ to, from, subject, body }) {
   const lines = [
     `To: ${to}`,
     `From: ${from}`,
-    `Subject: ${subject}`,
+    `Subject: ${encodeHeader(subject)}`,
     "Content-Type: text/plain; charset=UTF-8",
     "MIME-Version: 1.0",
     "",
@@ -40,7 +46,7 @@ module.exports = async (req, res) => {
     }
   }
 
-  const { slug, customerName, monthLabel, tier, items } = body || {};
+  const { slug, customerName, monthLabel, tier, items, grossValue, netSubtotal, saved } = body || {};
 
   if (!customerName || !Array.isArray(items)) {
     res.status(400).json({ ok: false, error: "Malformed order payload" });
@@ -57,10 +63,13 @@ module.exports = async (req, res) => {
     return;
   }
 
+  const nameWidth = Math.max(...items.map((i) => String(i.name).length));
   const lines = items.map((i) => {
     const qty = Number(i.qty) || 0;
-    const msrp = Number(i.msrp) || 0;
-    return `  ${qty} x ${i.name} (MSRP ${fmt(msrp)} ea)`;
+    const unitPrice = Number(i.unitPrice) || 0;
+    const lineTotal = Number(i.lineTotal) || 0;
+    const label = `${qty} x ${i.name}`.padEnd(nameWidth + 6);
+    return `  ${label}  ${fmt(unitPrice)} ea   ${fmt(lineTotal)}`;
   });
 
   const emailBody = [
@@ -71,9 +80,8 @@ module.exports = async (req, res) => {
     "Items:",
     ...lines,
     "",
-    "(Line pricing and totals are shown on the customer's portal page — this",
-    "draft lists requested quantities at MSRP; confirm tier pricing before",
-    "replying.)"
+    `Subtotal:          ${fmt(Number(netSubtotal) || 0)}`,
+    `Discount applied:  ${fmt(Number(saved) || 0)}  (list price ${fmt(Number(grossValue) || 0)})`
   ].join("\n");
 
   try {
