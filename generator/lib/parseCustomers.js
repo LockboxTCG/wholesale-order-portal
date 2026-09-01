@@ -9,6 +9,7 @@ function parseCustomers(grid) {
   const col = (name) => header.indexOf(name);
 
   const businessCol = col("business name");
+  const firstNameCol = col("contact first name");
   const emailCol = col("contact email");
   const logoCol = col("logo url");
 
@@ -22,6 +23,7 @@ function parseCustomers(grid) {
     if (!businessName) continue;
     customers.push({
       businessName,
+      contactFirstName: firstNameCol !== -1 ? (grid[row][firstNameCol] || "").toString().trim() : "",
       contactEmail: emailCol !== -1 ? (grid[row][emailCol] || "").toString().trim() : "",
       logoUrl: logoCol !== -1 ? (grid[row][logoCol] || "").toString().trim() : ""
     });

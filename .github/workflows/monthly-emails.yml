@@ -1,0 +1,75 @@
+name: Monthly customer emails
+
+on:
+  schedule:
+    # 1st of the month, 14:00 UTC — one hour after generate.yml's regen, so
+    # the site is already live with that month's pages before anyone gets a link.
+    - cron: "0 14 1 * *"
+    # 15th of the month, 14:00 UTC — reminder reply in the same thread.
+    - cron: "0 14 15 * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Which email to send"
+        required: true
+        type: choice
+        options:
+          - send
+          - remind
+
+permissions:
+  contents: write
+
+jobs:
+  email:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - run: npm ci
+
+      - name: Determine mode
+        id: mode
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "mode=${{ inputs.mode }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.schedule }}" = "0 14 1 * *" ]; then
+            echo "mode=send" >> "$GITHUB_OUTPUT"
+          else
+            echo "mode=remind" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Send monthly links
+        if: steps.mode.outputs.mode == 'send'
+        run: node generator/send-monthly-emails.js
+        env:
+          GOOGLE_SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}
+          PORTAL_SLUG_SECRET: ${{ secrets.PORTAL_SLUG_SECRET }}
+          CUSTOMER_SHEET_ID: ${{ vars.CUSTOMER_SHEET_ID }}
+          SITE_ORIGIN: ${{ vars.SITE_ORIGIN }}
+          GMAIL_CLIENT_ID: ${{ secrets.GMAIL_CLIENT_ID }}
+          GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET }}
+          GMAIL_REFRESH_TOKEN: ${{ secrets.GMAIL_REFRESH_TOKEN }}
+
+      - name: Commit thread state
+        if: steps.mode.outputs.mode == 'send'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add state/
+          git diff --cached --quiet && echo "Nothing to commit" || git commit -m "Record email thread state for $(date +%Y-%m)"
+          git push
+
+      - name: Send reminders
+        if: steps.mode.outputs.mode == 'remind'
+        run: node generator/send-reminder-emails.js
+        env:
+          PORTAL_SLUG_SECRET: ${{ secrets.PORTAL_SLUG_SECRET }}
+          SITE_ORIGIN: ${{ vars.SITE_ORIGIN }}
+          GMAIL_CLIENT_ID: ${{ secrets.GMAIL_CLIENT_ID }}
+          GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET }}
+          GMAIL_REFRESH_TOKEN: ${{ secrets.GMAIL_REFRESH_TOKEN }}
