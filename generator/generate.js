@@ -92,6 +92,7 @@ async function main() {
 
     const html = renderPage({
       customerName: c.businessName,
+      customerEmail: c.contactEmail,
       monthLabel,
       slug: c.slug,
       logoPath,

@@ -1,34 +1,26 @@
 "use strict";
 
-const { google } = require("googleapis");
+const VARIANTS = require("./shopifyVariants.json");
 
 function fmt(n) {
   return "$" + n.toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-// RFC 2047 encoded-word: message headers (unlike the body) are ASCII-only by
-// default, so a raw em dash in the Subject line renders as mojibake in Gmail.
-function encodeHeader(str) {
-  return "=?UTF-8?B?" + Buffer.from(str, "utf8").toString("base64") + "?=";
-}
-
-function buildEmail({ to, from, subject, body }) {
-  const lines = [
-    `To: ${to}`,
-    `From: ${from}`,
-    `Subject: ${encodeHeader(subject)}`,
-    "Content-Type: text/plain; charset=UTF-8",
-    "MIME-Version: 1.0",
-    "",
-    body
-  ];
-  const raw = Buffer.from(lines.join("\r\n"))
-    .toString("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
-  return raw;
-}
+const DRAFT_ORDER_CREATE = `
+  mutation draftOrderCreate($input: DraftOrderInput!) {
+    draftOrderCreate(input: $input) {
+      draftOrder {
+        id
+        name
+        invoiceUrl
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
 
 module.exports = async (req, res) => {
   if (req.method !== "POST") {
@@ -46,7 +38,7 @@ module.exports = async (req, res) => {
     }
   }
 
-  const { slug, customerName, monthLabel, tier, items, grossValue, netSubtotal, saved } = body || {};
+  const { slug, customerName, customerEmail, monthLabel, tier, items, grossValue, netSubtotal, saved } = body || {};
 
   if (!customerName || !Array.isArray(items)) {
     res.status(400).json({ ok: false, error: "Malformed order payload" });
@@ -63,55 +55,73 @@ module.exports = async (req, res) => {
     return;
   }
 
-  const nameWidth = Math.max(...items.map((i) => String(i.name).length));
-  const lines = items.map((i) => {
+  const lineItems = [];
+  for (const i of items) {
     const qty = Number(i.qty) || 0;
-    const unitPrice = Number(i.unitPrice) || 0;
-    const lineTotal = Number(i.lineTotal) || 0;
-    const label = `${qty} x ${i.name}`.padEnd(nameWidth + 6);
-    return `  ${label}  ${fmt(unitPrice)} ea   ${fmt(lineTotal)}`;
-  });
+    if (qty <= 0) continue;
+    const variantId = VARIANTS[i.name];
+    if (!variantId) {
+      res.status(500).json({ ok: false, error: `No Shopify product mapped for "${i.name}"` });
+      return;
+    }
+    // Always use the catalog's tier-computed price, never the Shopify
+    // variant's own listed price — the two can legitimately drift (wholesale
+    // pricing isn't the storefront price) and the catalog is the source of
+    // truth for what this customer actually owes. A variant-based line item
+    // ignores plain "originalUnitPrice" and uses the variant's own price
+    // unless a priceOverride is set explicitly.
+    lineItems.push({
+      variantId,
+      quantity: qty,
+      priceOverride: {
+        amount: (Number(i.unitPrice) || 0).toFixed(2),
+        currencyCode: "CAD"
+      }
+    });
+  }
 
-  const emailBody = [
-    `Wholesale order — ${customerName} — ${monthLabel || ""}`,
-    `Tier: ${tier}`,
+  const noteLines = [
+    `${customerName}${customerEmail ? " <" + customerEmail + ">" : ""}`,
     `Portal: ${slug || "(unknown)"}`,
-    "",
-    "Items:",
-    ...lines,
-    "",
-    `Subtotal:          ${fmt(Number(netSubtotal) || 0)}`,
-    `Discount applied:  ${fmt(Number(saved) || 0)}  (list price ${fmt(Number(grossValue) || 0)})`
+    `Month: ${monthLabel || ""}`,
+    `Tier: ${tier}`,
+    `Subtotal: ${fmt(Number(netSubtotal) || 0)}`,
+    `Discount applied: ${fmt(Number(saved) || 0)} (list price ${fmt(Number(grossValue) || 0)})`
   ].join("\n");
 
   try {
-    const auth = new google.auth.OAuth2(
-      requireEnv("GMAIL_CLIENT_ID"),
-      requireEnv("GMAIL_CLIENT_SECRET")
-    );
-    auth.setCredentials({ refresh_token: requireEnv("GMAIL_REFRESH_TOKEN") });
+    const shop = requireEnv("SHOPIFY_SHOP");
+    const token = requireEnv("SHOPIFY_ACCESS_TOKEN");
 
-    const gmail = google.gmail({ version: "v1", auth });
-    const toAddress = process.env.GMAIL_DRAFT_TO || "management@lockboxtcg.com";
-
-    await gmail.users.drafts.create({
-      userId: "me",
-      requestBody: {
-        message: {
-          raw: buildEmail({
-            to: toAddress,
-            from: toAddress,
-            subject: `Wholesale order — ${customerName} — ${monthLabel || ""}`,
-            body: emailBody
-          })
+    const shopifyRes = await fetch(`https://${shop}/admin/api/2026-07/graphql.json`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Shopify-Access-Token": token
+      },
+      body: JSON.stringify({
+        query: DRAFT_ORDER_CREATE,
+        variables: {
+          input: {
+            lineItems,
+            note: noteLines
+          }
         }
-      }
+      })
     });
+
+    const data = await shopifyRes.json();
+    const userErrors = data?.data?.draftOrderCreate?.userErrors || [];
+    if (!shopifyRes.ok || data.errors || userErrors.length > 0) {
+      console.error("draftOrderCreate failed:", JSON.stringify(data.errors || userErrors));
+      res.status(502).json({ ok: false, error: "Could not create the draft order. Please try again shortly." });
+      return;
+    }
 
     res.status(200).json({ ok: true });
   } catch (err) {
     console.error("submit-order failed:", err);
-    res.status(502).json({ ok: false, error: "Could not create the order draft. Please try again shortly." });
+    res.status(502).json({ ok: false, error: "Could not create the draft order. Please try again shortly." });
   }
 };
 

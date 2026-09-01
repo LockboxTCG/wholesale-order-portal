@@ -186,6 +186,7 @@
         body: JSON.stringify({
           slug: DATA.slug,
           customerName: DATA.customerName,
+          customerEmail: DATA.customerEmail,
           monthLabel: DATA.monthLabel,
           tier,
           items,
@@ -279,7 +280,7 @@
     } else if (belowMinimum) {
       els.submitNote.textContent = "Add at least $" + TIER_THRESHOLDS.Starter + " (MSRP) to submit an order";
     } else {
-      els.submitNote.textContent = "Emails your order details straight to LockboxTCG";
+      els.submitNote.textContent = "Sends your order straight to LockboxTCG";
     }
   }
 

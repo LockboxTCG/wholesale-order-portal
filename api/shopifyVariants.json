@@ -1,0 +1,16 @@
+{
+  "_comment": "Catalog product name (must match the Pricing Sheet exactly) -> Shopify variant GID. PSA Bumper Case and Single Matte Sleeves have multiple color variants at the same price with no color tracked in the catalog; each defaults to its first-listed color (Blue, Black respectively). Line item price is always overridden with the catalog's tier-computed price, never the Shopify variant's own price, so any drift between the two doesn't matter.",
+  "Standard Penny Sleeves (100 pcs)": "gid://shopify/ProductVariant/47291495350511",
+  "Perfect-Fit Sleeves (100 pcs)": "gid://shopify/ProductVariant/50218072998127",
+  "Toploader (25 pcs)": "gid://shopify/ProductVariant/47011775709423",
+  "PSA Bumper Case": "gid://shopify/ProductVariant/47573421457647",
+  "Pokemon Booster Box Case": "gid://shopify/ProductVariant/47011778363631",
+  "Pokemon ETB Case": "gid://shopify/ProductVariant/47291496726767",
+  "Pokemon UPC Case": "gid://shopify/ProductVariant/47011777839343",
+  "One Piece Box Case": "gid://shopify/ProductVariant/47291497087215",
+  "Riftbound Booster Box": "gid://shopify/ProductVariant/47765799305455",
+  "Single Acrylic Display Case": "gid://shopify/ProductVariant/47011745169647",
+  "Triple Acrylic Display Case": "gid://shopify/ProductVariant/47011772858607",
+  "PSA Single Acrylic Display Case": "gid://shopify/ProductVariant/47291496464623",
+  "Single Matte Sleeves": "gid://shopify/ProductVariant/49801095446767"
+}
