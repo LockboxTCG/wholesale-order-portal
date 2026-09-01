@@ -10,6 +10,7 @@ const fs = require("fs");
 const path = require("path");
 
 const { getAccessToken, buildRawEmail, sendEmail } = require("./lib/gmailSend");
+const { FIRST_SEND_DATE, beforeFirstSend } = require("./lib/emailSchedule");
 
 const ROOT = path.join(__dirname, "..");
 
@@ -18,10 +19,19 @@ function monthKey(date) {
 }
 
 async function main() {
+  const now = new Date();
+
+  if (beforeFirstSend(now)) {
+    console.log(
+      `Today (${now.toISOString()}) is before the configured first-send date ` +
+        `(${FIRST_SEND_DATE.toISOString()}) — nothing to remind yet.`
+    );
+    return;
+  }
+
   const SITE_ORIGIN = process.env.SITE_ORIGIN || "https://wholesale.lockboxtcg.com";
   const PORTAL_SLUG_SECRET = requireEnv("PORTAL_SLUG_SECRET");
 
-  const now = new Date();
   const key = monthKey(now);
   const statePath = path.join(ROOT, "state", "email-threads", `${key}.json`);
 
