@@ -11,6 +11,7 @@ const path = require("path");
 
 const { getAccessToken, buildRawEmail, sendEmail } = require("./lib/gmailSend");
 const { FIRST_SEND_DATE, beforeFirstSend } = require("./lib/emailSchedule");
+const { buildReminderSubject, buildReminderBody } = require("./lib/reminderEmail");
 
 const ROOT = path.join(__dirname, "..");
 
@@ -61,17 +62,8 @@ async function main() {
     const raw = buildRawEmail({
       to: entry.contactEmail,
       from,
-      subject: `Re: ${entry.subject}`,
-      body: [
-        `Hey ${firstName}, quick note — your ${monthLabel} order page is still open if you haven't placed your order yet:`,
-        "",
-        url,
-        "",
-        `No rush if ${entry.businessName} is already set for the month.`,
-        "",
-        "Thanks,",
-        "LockboxTCG"
-      ].join("\n")
+      subject: buildReminderSubject(entry.subject),
+      body: buildReminderBody({ firstName, monthLabel, url, businessName: entry.businessName })
     });
 
     try {

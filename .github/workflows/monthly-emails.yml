@@ -17,6 +17,7 @@ on:
           - send
           - remind
           - test
+          - test-remind
 
 permissions:
   contents: write
@@ -86,3 +87,13 @@ jobs:
           GMAIL_REFRESH_TOKEN: ${{ secrets.GMAIL_REFRESH_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           TEST_EMAIL_TO: ${{ vars.TEST_EMAIL_TO }}
+
+      - name: Send test reminder
+        if: steps.mode.outputs.mode == 'test-remind'
+        run: node generator/send-test-reminder.js
+        env:
+          GMAIL_CLIENT_ID: ${{ secrets.GMAIL_CLIENT_ID }}
+          GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET }}
+          GMAIL_REFRESH_TOKEN: ${{ secrets.GMAIL_REFRESH_TOKEN }}
+          TEST_EMAIL_TO: ${{ vars.TEST_EMAIL_TO }}
+          TEST_THREAD_ID: ${{ vars.TEST_THREAD_ID }}
