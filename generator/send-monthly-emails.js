@@ -20,6 +20,7 @@ const { parseCustomers } = require("./lib/parseCustomers");
 const { customerSlug } = require("./lib/slug");
 const { getAccessToken, buildRawEmail, sendEmail } = require("./lib/gmailSend");
 const { FIRST_SEND_DATE, beforeFirstSend } = require("./lib/emailSchedule");
+const { rewriteEmailBody } = require("./lib/rewriteEmail");
 
 const ROOT = path.join(__dirname, "..");
 
@@ -69,6 +70,32 @@ async function main() {
   const from = process.env.GMAIL_SEND_FROM || "management@lockboxtcg.com";
 
   const monthLabel = now.toLocaleDateString("en-CA", { month: "long", year: "numeric" });
+  const subject = `Your ${monthLabel} order page is ready`;
+
+  const tokenizedBody = [
+    "Hi [[NAME]],",
+    "",
+    "Your [[MONTH]] ordering page for LockboxTCG is live:",
+    "",
+    "[[LINK]]",
+    "",
+    "Submit your order through the page and it’ll come to us as a draft order. We’ll follow up with an official invoice and an estimated fulfillment timeline as soon as possible.",
+    "",
+    "Reply here if you notice any incorrect products, pricing, or quantities on the page, or if you have questions about placing your order, product availability, or expected delivery timing. We’re happy to help.",
+    "",
+    "Thanks,",
+    "LockboxTCG",
+    "management@lockboxtcg.com"
+  ].join("\n");
+
+  const rewritten = await rewriteEmailBody(tokenizedBody, process.env.ANTHROPIC_API_KEY);
+  const bodyTemplate = rewritten || tokenizedBody;
+  console.log(
+    rewritten
+      ? "Using an AI-rewritten email template for this send."
+      : "Using the base email template (rewrite unavailable, invalid, or ANTHROPIC_API_KEY not set)."
+  );
+
   const state = {};
 
   for (const c of customers) {
@@ -79,28 +106,24 @@ async function main() {
 
     const slug = customerSlug(c.businessName, PORTAL_SLUG_SECRET);
     const url = `${SITE_ORIGIN}/c/${slug}/`;
-    const greeting = c.contactFirstName ? `Hi ${c.contactFirstName},` : "Hi,";
-    const subject = `Your ${monthLabel} LockboxTCG wholesale order is ready`;
 
-    const raw = buildRawEmail({
-      to: c.contactEmail,
-      from,
-      subject,
-      body: [
-        greeting,
-        "",
-        `Your ${monthLabel} wholesale ordering page is ready:`,
-        url,
-        "",
-        "Let us know if you have any questions.",
-        "",
-        "— LockboxTCG"
-      ].join("\n")
-    });
+    const body = bodyTemplate
+      .split("[[NAME]]").join(c.contactFirstName || "there")
+      .split("[[MONTH]]").join(monthLabel)
+      .split("[[LINK]]").join(url)
+      .split("[[BUSINESS]]").join(c.businessName);
+
+    const raw = buildRawEmail({ to: c.contactEmail, from, subject, body });
 
     try {
       const sent = await sendEmail({ accessToken, raw });
-      state[slug] = { businessName: c.businessName, contactEmail: c.contactEmail, threadId: sent.threadId, subject };
+      state[slug] = {
+        businessName: c.businessName,
+        contactFirstName: c.contactFirstName,
+        contactEmail: c.contactEmail,
+        threadId: sent.threadId,
+        subject
+      };
       console.log(`Sent to ${c.businessName} <${c.contactEmail}>`);
     } catch (err) {
       console.error(`Failed to send to "${c.businessName}" <${c.contactEmail}>: ${err.message}`);

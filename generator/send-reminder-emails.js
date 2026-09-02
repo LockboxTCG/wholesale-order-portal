@@ -44,6 +44,8 @@ async function main() {
   const slugs = Object.keys(state);
   console.log(`Loaded ${slugs.length} threads from ${statePath}.`);
 
+  const monthLabel = now.toLocaleDateString("en-CA", { month: "long", year: "numeric" });
+
   const accessToken = await getAccessToken({
     clientId: requireEnv("GMAIL_CLIENT_ID"),
     clientSecret: requireEnv("GMAIL_CLIENT_SECRET"),
@@ -54,16 +56,21 @@ async function main() {
   for (const slug of slugs) {
     const entry = state[slug];
     const url = `${SITE_ORIGIN}/c/${slug}/`;
+    const firstName = entry.contactFirstName || "there";
 
     const raw = buildRawEmail({
       to: entry.contactEmail,
       from,
       subject: `Re: ${entry.subject}`,
       body: [
-        "Just a reminder — your wholesale ordering page is still open:",
+        `Hey ${firstName}, quick note — your ${monthLabel} order page is still open if you haven't placed your order yet:`,
+        "",
         url,
         "",
-        "— LockboxTCG"
+        `No rush if ${entry.businessName} is already set for the month.`,
+        "",
+        "Thanks,",
+        "LockboxTCG"
       ].join("\n")
     });
 
