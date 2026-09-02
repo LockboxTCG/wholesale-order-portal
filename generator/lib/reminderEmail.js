@@ -10,7 +10,7 @@ function buildReminderSubject(originalSubject) {
 
 function buildReminderBody({ firstName, monthLabel, url, businessName }) {
   return [
-    `Hey ${firstName}, quick note — your ${monthLabel} order page is still open if you haven't placed your order yet:`,
+    `Hey ${firstName}, quick note: your ${monthLabel} order page is still open if you haven't placed your order yet:`,
     "",
     url,
     "",

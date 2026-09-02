@@ -6,9 +6,9 @@
 // placeholders — [[LINK]], [[NAME]], [[BUSINESS]], [[MONTH]] — so the same
 // rewritten copy can be reused for every customer in the run.
 //
-// Fails closed: any error, empty response, or a token the input contained
-// going missing from the output falls back to the caller using the
-// unmodified tokenized template (returns null).
+// Fails closed: any error, empty response, an em dash in the output, or a
+// token the input contained going missing from the output falls back to
+// the caller using the unmodified tokenized template (returns null).
 
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_MODEL = "claude-sonnet-5";
@@ -35,8 +35,9 @@ async function rewriteEmailBody(tokenizedBody, apiKey) {
             role: "user",
             content:
               "Rewrite this plain-text B2B email with different sentence structure and " +
-              "phrasing, same length and tone, plain text only, no formatting. Do not alter " +
-              "the tokens [[LINK]], [[NAME]], [[BUSINESS]], [[MONTH]] — copy them exactly.\n\n" +
+              "phrasing, same length and tone, plain text only, no formatting, no em dashes. " +
+              "Do not alter the tokens [[LINK]], [[NAME]], [[BUSINESS]], [[MONTH]] — copy them " +
+              "exactly.\n\n" +
               tokenizedBody
           }
         ]
@@ -54,6 +55,7 @@ async function rewriteEmailBody(tokenizedBody, apiKey) {
 
     if (!text) return null;
     if (!requiredTokens.every((token) => text.includes(token))) return null;
+    if (text.includes("—")) return null;
 
     return text;
   } catch (err) {
