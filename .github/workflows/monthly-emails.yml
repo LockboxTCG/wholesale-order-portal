@@ -18,6 +18,7 @@ on:
           - remind
           - test
           - test-remind
+          - validate-roundtrip
 
 permissions:
   contents: write
@@ -97,3 +98,40 @@ jobs:
           GMAIL_REFRESH_TOKEN: ${{ secrets.GMAIL_REFRESH_TOKEN }}
           TEST_EMAIL_TO: ${{ vars.TEST_EMAIL_TO }}
           TEST_THREAD_ID: ${{ vars.TEST_THREAD_ID }}
+
+      - name: "Roundtrip: write dry-run state"
+        if: steps.mode.outputs.mode == 'validate-roundtrip'
+        run: node generator/write-dryrun-state.js
+        env:
+          GMAIL_CLIENT_ID: ${{ secrets.GMAIL_CLIENT_ID }}
+          GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET }}
+          GMAIL_REFRESH_TOKEN: ${{ secrets.GMAIL_REFRESH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TEST_EMAIL_TO: ${{ vars.TEST_EMAIL_TO }}
+
+      - name: "Roundtrip: commit dry-run state"
+        if: steps.mode.outputs.mode == 'validate-roundtrip'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add state/email-threads/_dryrun.json
+          git commit -m "Roundtrip validation: write dry-run thread state"
+          git push
+
+      - name: "Roundtrip: read state back and reply"
+        if: steps.mode.outputs.mode == 'validate-roundtrip'
+        run: node generator/read-dryrun-state.js
+        env:
+          SITE_ORIGIN: ${{ vars.SITE_ORIGIN }}
+          GMAIL_CLIENT_ID: ${{ secrets.GMAIL_CLIENT_ID }}
+          GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET }}
+          GMAIL_REFRESH_TOKEN: ${{ secrets.GMAIL_REFRESH_TOKEN }}
+
+      - name: "Roundtrip: clean up dry-run state"
+        if: always() && steps.mode.outputs.mode == 'validate-roundtrip'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git rm --ignore-unmatch state/email-threads/_dryrun.json
+          git diff --cached --quiet && echo "Nothing to clean up" || git commit -m "Roundtrip validation: clean up dry-run thread state"
+          git push
