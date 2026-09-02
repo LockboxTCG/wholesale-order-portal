@@ -21,6 +21,7 @@ const { customerSlug } = require("./lib/slug");
 const { getAccessToken, buildRawEmail, sendEmail } = require("./lib/gmailSend");
 const { FIRST_SEND_DATE, beforeFirstSend } = require("./lib/emailSchedule");
 const { rewriteEmailBody } = require("./lib/rewriteEmail");
+const { buildMonthlySubject, buildTokenizedBody, fillTokens } = require("./lib/monthlyEmail");
 
 const ROOT = path.join(__dirname, "..");
 
@@ -70,23 +71,8 @@ async function main() {
   const from = process.env.GMAIL_SEND_FROM || "management@lockboxtcg.com";
 
   const monthLabel = now.toLocaleDateString("en-CA", { month: "long", year: "numeric" });
-  const subject = `Your ${monthLabel} order page is ready`;
-
-  const tokenizedBody = [
-    "Hi [[NAME]],",
-    "",
-    "Your [[MONTH]] ordering page for LockboxTCG is live:",
-    "",
-    "[[LINK]]",
-    "",
-    "Submit your order through the page and it’ll come to us as a draft order. We’ll follow up with an official invoice and an estimated fulfillment timeline as soon as possible.",
-    "",
-    "Reply here if you notice any incorrect products, pricing, or quantities on the page, or if you have questions about placing your order, product availability, or expected delivery timing. We’re happy to help.",
-    "",
-    "Thanks,",
-    "LockboxTCG",
-    "management@lockboxtcg.com"
-  ].join("\n");
+  const subject = buildMonthlySubject(monthLabel);
+  const tokenizedBody = buildTokenizedBody();
 
   const rewritten = await rewriteEmailBody(tokenizedBody, process.env.ANTHROPIC_API_KEY);
   const bodyTemplate = rewritten || tokenizedBody;
@@ -107,11 +93,12 @@ async function main() {
     const slug = customerSlug(c.businessName, PORTAL_SLUG_SECRET);
     const url = `${SITE_ORIGIN}/c/${slug}/`;
 
-    const body = bodyTemplate
-      .split("[[NAME]]").join(c.contactFirstName || "there")
-      .split("[[MONTH]]").join(monthLabel)
-      .split("[[LINK]]").join(url)
-      .split("[[BUSINESS]]").join(c.businessName);
+    const body = fillTokens(bodyTemplate, {
+      name: c.contactFirstName || "there",
+      month: monthLabel,
+      link: url,
+      business: c.businessName
+    });
 
     const raw = buildRawEmail({ to: c.contactEmail, from, subject, body });
 
