@@ -62,6 +62,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          mkdir -p state
           git add state/
           git diff --cached --quiet && echo "Nothing to commit" || git commit -m "Record email thread state for $(date +%Y-%m)"
           git push
