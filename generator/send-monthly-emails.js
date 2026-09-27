@@ -1,15 +1,16 @@
 "use strict";
 
-// Sends each customer their monthly ordering-page link. Run on the 1st of
-// the month, an hour after generate.js has already redeployed the site with
-// that month's pages (see .github/workflows/monthly-emails.yml).
+// Sends each customer their monthly ordering-page link. Run on the first
+// Monday of the month (see generator/lib/emailSchedule.js for the exact
+// rule and this cycle's transition dates), an hour after generate.js has
+// already redeployed the site with that month's pages (see
+// .github/workflows/monthly-emails.yml).
 //
 // Records each sent message's Gmail threadId + exact subject line to
 // state/email-threads/<YYYY-MM>.json, committed back to the repo — the
-// reminder script on the 15th reads that file to reply into the same
-// thread. Refuses to run twice for the same month (guards against an
-// accidental double-send to every customer on a manual re-run) unless
-// FORCE=1 is set.
+// reminder script reads that file to reply into the same thread. Refuses
+// to run twice for the same month (guards against an accidental
+// double-send to every customer on a manual re-run) unless FORCE=1 is set.
 
 const fs = require("fs");
 const path = require("path");
@@ -19,7 +20,7 @@ const { loadAuth, getGrid } = require("./lib/sheets");
 const { parseCustomers } = require("./lib/parseCustomers");
 const { customerSlug } = require("./lib/slug");
 const { getAccessToken, buildRawEmail, sendEmail } = require("./lib/gmailSend");
-const { FIRST_SEND_DATE, beforeFirstSend } = require("./lib/emailSchedule");
+const { isSendDay } = require("./lib/emailSchedule");
 const { rewriteEmailBody } = require("./lib/rewriteEmail");
 const { buildMonthlySubject, buildTokenizedBody, fillTokens } = require("./lib/monthlyEmail");
 const { sendInBatches } = require("./lib/batchSend");
@@ -35,11 +36,10 @@ function monthKey(date) {
 async function main() {
   const now = new Date();
 
-  if (beforeFirstSend(now)) {
+  if (!isSendDay(now)) {
     console.log(
-      `Today (${now.toISOString()}) is before the configured first-send date ` +
-        `(${FIRST_SEND_DATE.toISOString()}) — not sending anything. ` +
-        "Update generator/lib/emailSchedule.js once the real launch has happened."
+      `Today (${now.toISOString()}) is not a scheduled send day — not sending anything, ` +
+        "regardless of how this run was triggered. See generator/lib/emailSchedule.js for the rule."
     );
     return;
   }

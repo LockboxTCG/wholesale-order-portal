@@ -2,8 +2,11 @@ name: Generate & deploy wholesale portal
 
 on:
   schedule:
-    # 1st of every month, 13:00 UTC (09:00 ET). Adjust to taste.
-    - cron: "0 13 1 * *"
+    # Every Monday, 13:00 UTC (09:00 ET). generate.js itself decides
+    # whether today is an actual send day (first Monday of the month, plus
+    # this cycle's transition dates - see generator/lib/emailSchedule.js)
+    # and no-ops otherwise, since cron can't express "Nth Monday" directly.
+    - cron: "0 13 * * 1"
   workflow_dispatch: {}
 
 jobs:
@@ -19,8 +22,10 @@ jobs:
       - run: npm ci
 
       - name: Generate customer pages
+        id: generate
         run: node generator/generate.js
         env:
+          TRIGGER_EVENT: ${{ github.event_name }}
           GOOGLE_SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}
           PORTAL_SLUG_SECRET: ${{ secrets.PORTAL_SLUG_SECRET }}
           PRICING_SHEET_ID: ${{ vars.PRICING_SHEET_ID }}
@@ -28,12 +33,14 @@ jobs:
           SITE_ORIGIN: ${{ vars.SITE_ORIGIN }}
 
       - name: Upload customer link manifest
+        if: steps.generate.outputs.skipped != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: customer-manifest
           path: deploy/_manifest.csv
 
       - name: Deploy to Vercel
+        if: steps.generate.outputs.skipped != 'true'
         run: |
           npm i -g vercel@latest
           vercel deploy --prod --yes --token="$VERCEL_TOKEN" --cwd deploy

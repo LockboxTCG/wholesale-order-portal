@@ -10,6 +10,7 @@ const { parseCustomers } = require("./lib/parseCustomers");
 const { parsePriceOverrides, applyPriceOverrides } = require("./lib/priceOverrides");
 const { customerSlug } = require("./lib/slug");
 const { renderPage } = require("./lib/renderPage");
+const { isSendDay } = require("./lib/emailSchedule");
 
 const ROOT = path.join(__dirname, "..");
 const DEPLOY_DIR = path.join(ROOT, "deploy");
@@ -25,6 +26,24 @@ function copyDir(src, dest) {
 }
 
 async function main() {
+  // The workflow's cron fires every Monday (cron can't express "Nth Monday
+  // of the month" directly), so on a scheduled run this only actually
+  // regenerates/deploys on a real send day - matching the monthly email
+  // schedule, so the site isn't rebuilt on Mondays that don't matter. A
+  // manual run (workflow_dispatch, or running this locally) always
+  // proceeds regardless, since that's for on-demand testing/regeneration
+  // after a sheet edit.
+  if (process.env.TRIGGER_EVENT === "schedule" && !isSendDay(new Date())) {
+    console.log(`Today is not a scheduled send day — skipping regeneration (event: ${process.env.TRIGGER_EVENT}).`);
+    // No deploy/ directory gets created below when skipping, so the
+    // workflow's later steps (manifest upload, Vercel deploy) need to know
+    // to skip too rather than fail on a missing directory.
+    if (process.env.GITHUB_OUTPUT) {
+      fs.appendFileSync(process.env.GITHUB_OUTPUT, "skipped=true\n");
+    }
+    return;
+  }
+
   const PRICING_SHEET_ID = requireEnv("PRICING_SHEET_ID");
   const CUSTOMER_SHEET_ID = requireEnv("CUSTOMER_SHEET_ID");
   const PORTAL_SLUG_SECRET = requireEnv("PORTAL_SLUG_SECRET");
@@ -123,6 +142,10 @@ async function main() {
   fs.writeFileSync(path.join(DEPLOY_DIR, "_manifest.csv"), manifestRows.join("\n") + "\n");
 
   console.log(`\nDone. ${customers.length} customer pages written to ${DEPLOY_DIR}`);
+
+  if (process.env.GITHUB_OUTPUT) {
+    fs.appendFileSync(process.env.GITHUB_OUTPUT, "skipped=false\n");
+  }
 }
 
 function requireEnv(name) {

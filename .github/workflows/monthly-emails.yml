@@ -2,11 +2,14 @@ name: Monthly customer emails
 
 on:
   schedule:
-    # 1st of the month, 14:00 UTC — one hour after generate.yml's regen, so
-    # the site is already live with that month's pages before anyone gets a link.
-    - cron: "0 14 1 * *"
-    # 15th of the month, 14:00 UTC — reminder reply in the same thread.
-    - cron: "0 14 15 * *"
+    # Every Monday, 14:00 UTC — one hour after generate.yml's regen. Both
+    # send-monthly-emails.js and send-reminder-emails.js decide internally
+    # whether today is actually their day (first/third Monday of the
+    # month, plus this cycle's transition dates — see
+    # generator/lib/emailSchedule.js), since cron can't express "Nth
+    # Monday" directly. A scheduled run always attempts both; on most
+    # Mondays neither one does anything.
+    - cron: "0 14 * * 1"
   workflow_dispatch:
     inputs:
       mode:
@@ -40,14 +43,12 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "mode=${{ inputs.mode }}" >> "$GITHUB_OUTPUT"
-          elif [ "${{ github.event.schedule }}" = "0 14 1 * *" ]; then
-            echo "mode=send" >> "$GITHUB_OUTPUT"
           else
-            echo "mode=remind" >> "$GITHUB_OUTPUT"
+            echo "mode=auto" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Send monthly links
-        if: steps.mode.outputs.mode == 'send'
+        if: steps.mode.outputs.mode == 'send' || steps.mode.outputs.mode == 'auto'
         run: node generator/send-monthly-emails.js
         env:
           GOOGLE_SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}
@@ -60,7 +61,7 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
       - name: Commit thread state
-        if: always() && steps.mode.outputs.mode == 'send'
+        if: always() && (steps.mode.outputs.mode == 'send' || steps.mode.outputs.mode == 'auto')
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -70,7 +71,7 @@ jobs:
           git push
 
       - name: Send reminders
-        if: steps.mode.outputs.mode == 'remind'
+        if: steps.mode.outputs.mode == 'remind' || steps.mode.outputs.mode == 'auto'
         run: node generator/send-reminder-emails.js
         env:
           PORTAL_SLUG_SECRET: ${{ secrets.PORTAL_SLUG_SECRET }}

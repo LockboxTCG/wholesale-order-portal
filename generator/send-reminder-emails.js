@@ -1,16 +1,18 @@
 "use strict";
 
 // Sends a reminder reply, in the same Gmail thread as the original monthly
-// email, for the current month. Run on the 15th. Reads the state file
-// send-monthly-emails.js wrote on the 1st; customers with no entry there
-// (e.g. added to the directory after the 1st) are skipped, not emailed a
-// standalone reminder.
+// email, for the current month. Run on the third Monday of the month (see
+// generator/lib/emailSchedule.js for the exact rule and this cycle's
+// transition dates). Reads the state file send-monthly-emails.js wrote
+// earlier that month; customers with no entry there (e.g. added to the
+// directory after the send) are skipped, not emailed a standalone
+// reminder.
 
 const fs = require("fs");
 const path = require("path");
 
 const { getAccessToken, buildRawEmail, sendEmail } = require("./lib/gmailSend");
-const { FIRST_SEND_DATE, beforeFirstSend } = require("./lib/emailSchedule");
+const { isRemindDay } = require("./lib/emailSchedule");
 const { buildReminderSubject, buildReminderBody } = require("./lib/reminderEmail");
 const { sendInBatches } = require("./lib/batchSend");
 
@@ -25,10 +27,10 @@ function monthKey(date) {
 async function main() {
   const now = new Date();
 
-  if (beforeFirstSend(now)) {
+  if (!isRemindDay(now)) {
     console.log(
-      `Today (${now.toISOString()}) is before the configured first-send date ` +
-        `(${FIRST_SEND_DATE.toISOString()}) — nothing to remind yet.`
+      `Today (${now.toISOString()}) is not a scheduled reminder day — nothing to remind, ` +
+        "regardless of how this run was triggered. See generator/lib/emailSchedule.js for the rule."
     );
     return;
   }
