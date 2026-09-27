@@ -60,7 +60,7 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
       - name: Commit thread state
-        if: steps.mode.outputs.mode == 'send'
+        if: always() && steps.mode.outputs.mode == 'send'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"

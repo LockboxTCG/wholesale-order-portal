@@ -87,6 +87,16 @@ async function main() {
 
   const state = {};
 
+  // Batching stretches a real run to tens of minutes with idle gaps between
+  // batches (see BATCH_DELAY_MS) — persist progress after every send rather
+  // than once at the very end, so an interrupted run (cancelled, runner
+  // issue, timeout) still leaves an accurate record of who was actually
+  // emailed instead of losing it all.
+  function persistState() {
+    fs.mkdirSync(path.dirname(statePath), { recursive: true });
+    fs.writeFileSync(statePath, JSON.stringify(state, null, 2) + "\n");
+  }
+
   const emailableCustomers = customers.filter((c) => {
     if (!c.contactEmail) {
       console.warn(`Skipping "${c.businessName}" — no contact email on file.`);
@@ -125,6 +135,7 @@ async function main() {
           threadId: sent.threadId,
           subject
         };
+        persistState();
         console.log(`Sent to ${c.businessName} <${c.contactEmail}>`);
       } catch (err) {
         console.error(`Failed to send to "${c.businessName}" <${c.contactEmail}>: ${err.message}`);
@@ -132,8 +143,7 @@ async function main() {
     }
   });
 
-  fs.mkdirSync(path.dirname(statePath), { recursive: true });
-  fs.writeFileSync(statePath, JSON.stringify(state, null, 2) + "\n");
+  persistState();
   console.log(`\nWrote ${statePath} (${Object.keys(state).length} threads recorded).`);
 }
 
