@@ -22,6 +22,29 @@
 const TIER_ORDER = ["Starter", "Growth", "Volume"];
 const BLOCK_ROWS = 6;
 
+// Categories listed here are pulled to the front of the page, in this
+// order, ahead of every other category — regardless of which column they
+// happen to occupy in the sheet. Everything else keeps its natural
+// left-to-right column order.
+const PINNED_CATEGORY_ORDER = ["Competitive Play"];
+
+function sortCategories(categories) {
+  const pinnedIndex = (name) =>
+    PINNED_CATEGORY_ORDER.findIndex((p) => p.toLowerCase() === name.trim().toLowerCase());
+
+  return categories
+    .map((cat, i) => ({ cat, i, pin: pinnedIndex(cat.category) }))
+    .sort((a, b) => {
+      if (a.pin !== -1 || b.pin !== -1) {
+        if (a.pin === -1) return 1;
+        if (b.pin === -1) return -1;
+        if (a.pin !== b.pin) return a.pin - b.pin;
+      }
+      return a.i - b.i;
+    })
+    .map((x) => x.cat);
+}
+
 function cell(grid, row, col) {
   const r = grid[row];
   return r ? (r[col] === undefined ? "" : String(r[col]).trim()) : "";
@@ -59,7 +82,7 @@ function parseCatalog(grid) {
     throw new Error("Could not find any category headers in row 2 of the pricing sheet");
   }
 
-  return categoryStartCols.map((startCol) => {
+  const categories = categoryStartCols.map((startCol) => {
     const category = cell(grid, 1, startCol);
     const products = [];
     let row = 2; // first product title row (0-indexed row 2 == sheet row 3)
@@ -97,6 +120,8 @@ function parseCatalog(grid) {
 
     return { category, products };
   });
+
+  return sortCategories(categories);
 }
 
 module.exports = { parseCatalog, parseTierThresholds };
