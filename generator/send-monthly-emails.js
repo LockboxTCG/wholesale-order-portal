@@ -22,8 +22,11 @@ const { getAccessToken, buildRawEmail, sendEmail } = require("./lib/gmailSend");
 const { FIRST_SEND_DATE, beforeFirstSend } = require("./lib/emailSchedule");
 const { rewriteEmailBody } = require("./lib/rewriteEmail");
 const { buildMonthlySubject, buildTokenizedBody, fillTokens } = require("./lib/monthlyEmail");
+const { sendInBatches } = require("./lib/batchSend");
 
 const ROOT = path.join(__dirname, "..");
+const BATCH_SIZE = 5;
+const BATCH_DELAY_MS = 10 * 60 * 1000;
 
 function monthKey(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
@@ -84,38 +87,50 @@ async function main() {
 
   const state = {};
 
-  for (const c of customers) {
+  const emailableCustomers = customers.filter((c) => {
     if (!c.contactEmail) {
       console.warn(`Skipping "${c.businessName}" — no contact email on file.`);
-      continue;
+      return false;
     }
+    return true;
+  });
 
-    const slug = customerSlug(c.businessName, PORTAL_SLUG_SECRET);
-    const url = `${SITE_ORIGIN}/c/${slug}/`;
+  console.log(
+    `Sending to ${emailableCustomers.length} customers in batches of ${BATCH_SIZE}, ` +
+      `${BATCH_DELAY_MS / 60000} min apart…`
+  );
 
-    const body = fillTokens(bodyTemplate, {
-      name: c.contactFirstName || "there",
-      month: monthLabel,
-      link: url,
-      business: c.businessName
-    });
+  await sendInBatches(emailableCustomers, {
+    batchSize: BATCH_SIZE,
+    delayMs: BATCH_DELAY_MS,
+    sendOne: async (c) => {
+      const slug = customerSlug(c.businessName, PORTAL_SLUG_SECRET);
+      const url = `${SITE_ORIGIN}/c/${slug}/`;
 
-    const raw = buildRawEmail({ to: c.contactEmail, from, subject, body });
+      const body = fillTokens(bodyTemplate, {
+        name: c.contactFirstName || "there",
+        month: monthLabel,
+        link: url,
+        business: c.businessName
+      });
 
-    try {
-      const sent = await sendEmail({ accessToken, raw });
-      state[slug] = {
-        businessName: c.businessName,
-        contactFirstName: c.contactFirstName,
-        contactEmail: c.contactEmail,
-        threadId: sent.threadId,
-        subject
-      };
-      console.log(`Sent to ${c.businessName} <${c.contactEmail}>`);
-    } catch (err) {
-      console.error(`Failed to send to "${c.businessName}" <${c.contactEmail}>: ${err.message}`);
+      const raw = buildRawEmail({ to: c.contactEmail, from, subject, body });
+
+      try {
+        const sent = await sendEmail({ accessToken, raw });
+        state[slug] = {
+          businessName: c.businessName,
+          contactFirstName: c.contactFirstName,
+          contactEmail: c.contactEmail,
+          threadId: sent.threadId,
+          subject
+        };
+        console.log(`Sent to ${c.businessName} <${c.contactEmail}>`);
+      } catch (err) {
+        console.error(`Failed to send to "${c.businessName}" <${c.contactEmail}>: ${err.message}`);
+      }
     }
-  }
+  });
 
   fs.mkdirSync(path.dirname(statePath), { recursive: true });
   fs.writeFileSync(statePath, JSON.stringify(state, null, 2) + "\n");

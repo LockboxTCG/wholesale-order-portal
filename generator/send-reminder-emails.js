@@ -12,8 +12,11 @@ const path = require("path");
 const { getAccessToken, buildRawEmail, sendEmail } = require("./lib/gmailSend");
 const { FIRST_SEND_DATE, beforeFirstSend } = require("./lib/emailSchedule");
 const { buildReminderSubject, buildReminderBody } = require("./lib/reminderEmail");
+const { sendInBatches } = require("./lib/batchSend");
 
 const ROOT = path.join(__dirname, "..");
+const BATCH_SIZE = 5;
+const BATCH_DELAY_MS = 10 * 60 * 1000;
 
 function monthKey(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
@@ -54,25 +57,33 @@ async function main() {
   });
   const from = process.env.GMAIL_SEND_FROM || "management@lockboxtcg.com";
 
-  for (const slug of slugs) {
-    const entry = state[slug];
-    const url = `${SITE_ORIGIN}/c/${slug}/`;
-    const firstName = entry.contactFirstName || "there";
+  console.log(
+    `Sending to ${slugs.length} customers in batches of ${BATCH_SIZE}, ${BATCH_DELAY_MS / 60000} min apart…`
+  );
 
-    const raw = buildRawEmail({
-      to: entry.contactEmail,
-      from,
-      subject: buildReminderSubject(entry.subject),
-      body: buildReminderBody({ firstName, monthLabel, url, businessName: entry.businessName })
-    });
+  await sendInBatches(slugs, {
+    batchSize: BATCH_SIZE,
+    delayMs: BATCH_DELAY_MS,
+    sendOne: async (slug) => {
+      const entry = state[slug];
+      const url = `${SITE_ORIGIN}/c/${slug}/`;
+      const firstName = entry.contactFirstName || "there";
 
-    try {
-      await sendEmail({ accessToken, raw, threadId: entry.threadId });
-      console.log(`Reminded ${entry.businessName} <${entry.contactEmail}>`);
-    } catch (err) {
-      console.error(`Failed to remind "${entry.businessName}" <${entry.contactEmail}>: ${err.message}`);
+      const raw = buildRawEmail({
+        to: entry.contactEmail,
+        from,
+        subject: buildReminderSubject(entry.subject),
+        body: buildReminderBody({ firstName, monthLabel, url, businessName: entry.businessName })
+      });
+
+      try {
+        await sendEmail({ accessToken, raw, threadId: entry.threadId });
+        console.log(`Reminded ${entry.businessName} <${entry.contactEmail}>`);
+      } catch (err) {
+        console.error(`Failed to remind "${entry.businessName}" <${entry.contactEmail}>: ${err.message}`);
+      }
     }
-  }
+  });
 }
 
 function requireEnv(name) {
