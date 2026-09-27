@@ -312,6 +312,16 @@ input[type="number"]::-webkit-inner-spin-button {
   color: var(--text-strong);
 }
 
+.color-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 8px;
+  border-radius: var(--radius-pill);
+  border: var(--stroke-hairline) solid var(--outline-strong);
+  vertical-align: middle;
+}
+
 .row__msrp {
   margin-top: 4px;
   font: var(--fw-body) var(--fs-body-xs)/1 var(--font-mono);

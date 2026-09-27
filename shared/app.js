@@ -8,6 +8,30 @@
 
   const fmt = (n) => "$" + n.toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+  // Product names ending in "– <Color>" (e.g. "Single Matte Sleeves – White")
+  // get a small swatch dot next to the title. Unrecognized/absent colors
+  // just render with no swatch, same as before this existed.
+  const COLOR_SWATCHES = {
+    white: "#ffffff",
+    black: "#111111",
+    pink: "#f472b6",
+    green: "#2f9e5b",
+    red: "#dc3b2f",
+    blue: "#2f6fdc",
+    yellow: "#f2c53d",
+    purple: "#8e5cd9",
+    orange: "#e8792c",
+    grey: "#9aa0a6",
+    gray: "#9aa0a6",
+    clear: "transparent"
+  };
+
+  function colorSwatchFor(name) {
+    const m = String(name).match(/[–-]\s*([A-Za-z]+)\s*$/);
+    if (!m) return null;
+    return COLOR_SWATCHES[m[1].toLowerCase()] || null;
+  }
+
   // qty: Record<productKey, number> — sparse map, default 0.
   // Everything else (gross value, tier, net subtotal, savings, line totals,
   // active chip, progress label/%) is derived on render, never stored, so the
@@ -85,7 +109,15 @@
       nameBlock.className = "row__name";
       const nameTitle = document.createElement("div");
       nameTitle.className = "row__name-title";
-      nameTitle.textContent = p.name;
+      const swatchColor = colorSwatchFor(p.name);
+      if (swatchColor) {
+        const swatch = document.createElement("span");
+        swatch.className = "color-swatch";
+        swatch.style.backgroundColor = swatchColor;
+        swatch.setAttribute("aria-hidden", "true");
+        nameTitle.appendChild(swatch);
+      }
+      nameTitle.appendChild(document.createTextNode(p.name));
       const msrp = document.createElement("div");
       msrp.className = "row__msrp";
       msrp.textContent = "MSRP " + fmt(p.msrp);
