@@ -46,9 +46,7 @@ function buildEmail({ to, from, subject, body }) {
     .replace(/=+$/, "");
 }
 
-async function sendNotificationEmail({ customerName, monthLabel, tier, netSubtotal, adminUrl }) {
-  const to = process.env.GMAIL_NOTIFY_TO || "management@lockboxtcg.com";
-
+async function getGmailAccessToken() {
   const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -63,6 +61,25 @@ async function sendNotificationEmail({ customerName, monthLabel, tier, netSubtot
   if (!tokenRes.ok || !tokenData.access_token) {
     throw new Error("Could not mint a Gmail access token: " + JSON.stringify(tokenData));
   }
+  return tokenData.access_token;
+}
+
+async function gmailSend(accessToken, raw) {
+  const sendRes = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ raw })
+  });
+  if (!sendRes.ok) {
+    throw new Error("Gmail send failed: " + (await sendRes.text()));
+  }
+}
+
+async function sendNotificationEmail({ accessToken, customerName, monthLabel, tier, netSubtotal, adminUrl }) {
+  const to = process.env.GMAIL_NOTIFY_TO || "management@lockboxtcg.com";
 
   const raw = buildEmail({
     to,
@@ -75,17 +92,37 @@ async function sendNotificationEmail({ customerName, monthLabel, tier, netSubtot
     ].join("\n")
   });
 
-  const sendRes = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${tokenData.access_token}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({ raw })
+  await gmailSend(accessToken, raw);
+}
+
+async function sendCustomerConfirmationEmail({ accessToken, customerEmail, monthLabel, items, netSubtotal }) {
+  const from = process.env.GMAIL_SEND_FROM || "management@lockboxtcg.com";
+
+  const orderLines = items
+    .filter((i) => Number(i.qty) > 0)
+    .map((i) => `  ${i.name} x${i.qty}: ${fmt(Number(i.unitPrice) * Number(i.qty))}`);
+
+  const raw = buildEmail({
+    to: customerEmail,
+    from,
+    subject: `Order received: ${monthLabel || ""}`,
+    body: [
+      "Thanks, we've received your order.",
+      "",
+      "Your order:",
+      ...orderLines,
+      "",
+      `Subtotal: ${fmt(netSubtotal)}`,
+      "",
+      "We'll follow up with an official invoice and an estimated fulfillment timeline as soon as possible. " +
+        "Reply here if anything looks off or you have questions.",
+      "",
+      "Thanks,",
+      "LockboxTCG"
+    ].join("\n")
   });
-  if (!sendRes.ok) {
-    throw new Error("Gmail send failed: " + (await sendRes.text()));
-  }
+
+  await gmailSend(accessToken, raw);
 }
 
 async function sendSlackNotification({ customerName, monthLabel, tier, netSubtotal, adminUrl }) {
@@ -211,18 +248,36 @@ module.exports = async (req, res) => {
     const numericId = draftOrderGid.split("/").pop();
     const shopHandle = shop.replace(/\.myshopify\.com$/, "");
     const adminUrl = `https://admin.shopify.com/store/${shopHandle}/draft_orders/${numericId}`;
-    const notifyArgs = {
-      customerName,
-      monthLabel,
-      tier,
-      netSubtotal: Number(netSubtotal) || 0,
-      adminUrl
-    };
+    const netSubtotalNum = Number(netSubtotal) || 0;
+    const notifyArgs = { customerName, monthLabel, tier, netSubtotal: netSubtotalNum, adminUrl };
 
+    let gmailAccessToken = null;
     try {
-      await sendNotificationEmail(notifyArgs);
-    } catch (notifyErr) {
-      console.error("Order notification email failed (order was still created):", notifyErr);
+      gmailAccessToken = await getGmailAccessToken();
+    } catch (tokenErr) {
+      console.error("Could not get a Gmail access token (order was still created):", tokenErr);
+    }
+
+    if (gmailAccessToken) {
+      try {
+        await sendNotificationEmail({ accessToken: gmailAccessToken, ...notifyArgs });
+      } catch (notifyErr) {
+        console.error("Order notification email failed (order was still created):", notifyErr);
+      }
+
+      if (customerEmail) {
+        try {
+          await sendCustomerConfirmationEmail({
+            accessToken: gmailAccessToken,
+            customerEmail,
+            monthLabel,
+            items,
+            netSubtotal: netSubtotalNum
+          });
+        } catch (confirmErr) {
+          console.error("Customer confirmation email failed (order was still created):", confirmErr);
+        }
+      }
     }
 
     try {
