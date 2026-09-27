@@ -225,7 +225,8 @@ module.exports = async (req, res) => {
         variables: {
           input: {
             lineItems,
-            note: noteLines
+            note: noteLines,
+            tags: ["wholesale-portal"]
           }
         }
       })

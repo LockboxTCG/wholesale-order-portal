@@ -1,0 +1,39 @@
+name: Monthly wholesale summary
+
+on:
+  schedule:
+    # 1st of the month, 12:00 UTC, an hour before generate.yml's regen.
+    # Summarizes the month that just ended.
+    - cron: "0 12 1 * *"
+  workflow_dispatch: {}
+
+jobs:
+  summary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - run: npm ci
+
+      - name: Send monthly summary
+        run: node generator/send-monthly-summary.js
+        env:
+          SHOPIFY_SHOP: ${{ secrets.SHOPIFY_SHOP }}
+          SHOPIFY_ACCESS_TOKEN: ${{ secrets.SHOPIFY_ACCESS_TOKEN }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          GOOGLE_SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}
+          CUSTOMER_SHEET_ID: ${{ vars.CUSTOMER_SHEET_ID }}
+          PORTAL_SLUG_SECRET: ${{ secrets.PORTAL_SLUG_SECRET }}
+
+      - name: Notify Slack on failure
+        if: failure() || cancelled()
+        run: |
+          curl -s -X POST -H "Content-Type: application/json" \
+            -d "{\"text\": \":rotating_light: *monthly-summary.yml failed* on run <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|#${{ github.run_number }}>.\"}" \
+            "$SLACK_WEBHOOK_URL"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

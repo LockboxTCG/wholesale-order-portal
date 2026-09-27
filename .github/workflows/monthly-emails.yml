@@ -19,7 +19,6 @@ on:
           - test
           - test-remind
           - validate-roundtrip
-          - test-fail
 
 permissions:
   contents: write
@@ -136,10 +135,6 @@ jobs:
           git rm --ignore-unmatch state/email-threads/_dryrun.json
           git diff --cached --quiet && echo "Nothing to clean up" || git commit -m "Roundtrip validation: clean up dry-run thread state"
           git push
-
-      - name: "TEMP: deliberately fail (for testing failure alerts)"
-        if: steps.mode.outputs.mode == 'test-fail'
-        run: exit 1
 
       - name: Notify Slack on failure
         if: failure() || cancelled()
