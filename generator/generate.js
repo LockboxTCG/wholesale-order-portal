@@ -84,6 +84,10 @@ async function main() {
           const fileName = "logo." + logo.ext;
           fs.writeFileSync(path.join(customerDir, fileName), logo.buffer);
           logoPath = `/c/${c.slug}/${fileName}`;
+        } else {
+          console.warn(
+            `Could not parse a Drive file ID out of the Logo URL for "${c.businessName}": ${c.logoUrl}`
+          );
         }
       } catch (err) {
         console.warn(`Could not download logo for "${c.businessName}": ${err.message}`);

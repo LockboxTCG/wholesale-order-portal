@@ -28,11 +28,19 @@ async function getGrid(sheets, spreadsheetId) {
   return res.data.values || [];
 }
 
-const DRIVE_ID_RE = /[?&]id=([^&]+)/;
+// Covers both common Drive share-link shapes:
+//   https://drive.google.com/uc?export=view&id=<ID>        (query param)
+//   https://drive.google.com/file/d/<ID>/view?usp=sharing   (path segment)
+const DRIVE_ID_QUERY_RE = /[?&]id=([^&]+)/;
+const DRIVE_ID_PATH_RE = /\/d\/([^/?]+)/;
 
 function driveFileId(url) {
-  const m = String(url || "").match(DRIVE_ID_RE);
-  return m ? m[1] : null;
+  const str = String(url || "");
+  const queryMatch = str.match(DRIVE_ID_QUERY_RE);
+  if (queryMatch) return queryMatch[1];
+  const pathMatch = str.match(DRIVE_ID_PATH_RE);
+  if (pathMatch) return pathMatch[1];
+  return null;
 }
 
 const EXT_BY_MIME = {
