@@ -7,6 +7,7 @@ const { google } = require("googleapis");
 const { loadAuth, getGrid, downloadLogo } = require("./lib/sheets");
 const { parseCatalog, parseTierThresholds } = require("./lib/parsePricing");
 const { parseCustomers } = require("./lib/parseCustomers");
+const { parsePriceOverrides, applyPriceOverrides } = require("./lib/priceOverrides");
 const { customerSlug } = require("./lib/slug");
 const { renderPage } = require("./lib/renderPage");
 
@@ -94,13 +95,23 @@ async function main() {
       }
     }
 
+    let customerCatalog = catalog;
+    if (c.priceOverridesRaw) {
+      try {
+        const overrides = parsePriceOverrides(c.priceOverridesRaw);
+        customerCatalog = applyPriceOverrides(catalog, overrides, c.businessName);
+      } catch (err) {
+        console.warn(`Skipping price overrides for "${c.businessName}": ${err.message}`);
+      }
+    }
+
     const html = renderPage({
       customerName: c.businessName,
       customerEmail: c.contactEmail,
       monthLabel,
       slug: c.slug,
       logoPath,
-      catalog,
+      catalog: customerCatalog,
       tierThresholds
     });
     fs.writeFileSync(path.join(customerDir, "index.html"), html);
