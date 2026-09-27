@@ -88,6 +88,24 @@ async function sendNotificationEmail({ customerName, monthLabel, tier, netSubtot
   }
 }
 
+async function sendSlackNotification({ customerName, monthLabel, tier, netSubtotal, adminUrl }) {
+  const webhookUrl = requireEnv("SLACK_WEBHOOK_URL");
+
+  const text =
+    `*New wholesale order — ${customerName} — ${monthLabel || ""}*\n` +
+    `Tier: ${tier} · Subtotal: ${fmt(netSubtotal)}\n` +
+    `<${adminUrl}|Review it in Shopify>`;
+
+  const res = await fetch(webhookUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text })
+  });
+  if (!res.ok) {
+    throw new Error("Slack notification failed: " + (await res.text()));
+  }
+}
+
 module.exports = async (req, res) => {
   if (req.method !== "POST") {
     res.status(405).json({ ok: false, error: "Method not allowed" });
@@ -185,23 +203,32 @@ module.exports = async (req, res) => {
     }
 
     // The draft order is already safely created at this point — a failure
-    // sending the internal notification email shouldn't tell the customer
-    // their submission failed, so it's logged but never surfaces as an error.
-    try {
-      const draftOrderGid = data.data.draftOrderCreate.draftOrder.id;
-      const numericId = draftOrderGid.split("/").pop();
-      const shopHandle = shop.replace(/\.myshopify\.com$/, "");
-      const adminUrl = `https://admin.shopify.com/store/${shopHandle}/draft_orders/${numericId}`;
+    // sending an internal notification shouldn't tell the customer their
+    // submission failed, so each notification channel is independent: one
+    // failing is logged but never surfaces as an error, and never blocks
+    // the other from still going out.
+    const draftOrderGid = data.data.draftOrderCreate.draftOrder.id;
+    const numericId = draftOrderGid.split("/").pop();
+    const shopHandle = shop.replace(/\.myshopify\.com$/, "");
+    const adminUrl = `https://admin.shopify.com/store/${shopHandle}/draft_orders/${numericId}`;
+    const notifyArgs = {
+      customerName,
+      monthLabel,
+      tier,
+      netSubtotal: Number(netSubtotal) || 0,
+      adminUrl
+    };
 
-      await sendNotificationEmail({
-        customerName,
-        monthLabel,
-        tier,
-        netSubtotal: Number(netSubtotal) || 0,
-        adminUrl
-      });
+    try {
+      await sendNotificationEmail(notifyArgs);
     } catch (notifyErr) {
       console.error("Order notification email failed (order was still created):", notifyErr);
+    }
+
+    try {
+      await sendSlackNotification(notifyArgs);
+    } catch (notifyErr) {
+      console.error("Order Slack notification failed (order was still created):", notifyErr);
     }
 
     res.status(200).json({ ok: true });
