@@ -8,6 +8,8 @@
 
   const fmt = (n) => "$" + n.toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+  const IS_TOUCH = window.matchMedia("(pointer: coarse)").matches;
+
   // Product names ending in "– <Color>" (e.g. "Single Matte Sleeves – White")
   // get a small swatch dot next to the title. Unrecognized/absent colors
   // just render with no swatch, same as before this existed.
@@ -157,6 +159,16 @@
       input.min = "0";
       input.value = "0";
       input.setAttribute("aria-label", "Quantity for " + p.name);
+      input.inputMode = "numeric";
+      if (IS_TOUCH) {
+        // Tapping the pre-filled "0" would otherwise leave you typing "05".
+        input.addEventListener("focus", () => {
+          if (input.value === "0") input.value = "";
+        });
+        input.addEventListener("blur", () => {
+          if (input.value === "") input.value = "0";
+        });
+      }
       input.addEventListener("input", (e) => {
         const v = Math.max(0, parseInt(e.target.value, 10) || 0);
         state.qty[key] = v;
