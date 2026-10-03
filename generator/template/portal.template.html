@@ -46,6 +46,20 @@
   </div>
 </div>
 
+<div class="order-banner" id="orderBanner" role="status" hidden>
+  <div class="order-banner__inner">
+    <span class="check check--sm" aria-hidden="true"></span>
+    <div class="order-banner__text">
+      <div class="order-banner__title">Order placed</div>
+      <div class="order-banner__detail" id="orderBannerDetail"></div>
+    </div>
+    <div class="order-banner__actions">
+      <button type="button" class="btn-ghost" id="orderBannerView">View order</button>
+      <button type="button" class="btn-ghost" id="orderBannerNew">Start a new order</button>
+    </div>
+  </div>
+</div>
+
 <main class="catalog" id="catalog" aria-label="Product catalog"></main>
 
 <footer class="footerbar">
@@ -68,12 +82,27 @@
     <div class="submit-col">
       <button type="button" class="btn btn--primary" id="submitBtn">
         <span class="icon" aria-hidden="true"></span>
-        Submit order
+        <span id="submitLabel">Submit order</span>
       </button>
       <div class="submit-note" id="submitNote">Emails your order details straight to LockboxTCG</div>
     </div>
   </div>
 </footer>
+
+<div class="order-modal" id="orderModal" hidden>
+  <div class="order-modal__backdrop" id="orderModalBackdrop"></div>
+  <div class="order-modal__panel" role="dialog" aria-modal="true" aria-labelledby="orderModalTitle" tabindex="-1">
+    <div class="gold-strap"></div>
+    <div class="order-modal__body">
+      <span class="check" aria-hidden="true"></span>
+      <h2 class="order-modal__title" id="orderModalTitle">Order placed!</h2>
+      <p class="order-modal__lead" id="orderModalLead"></p>
+      <div class="order-modal__summary" id="orderModalSummary"></div>
+      <p class="order-modal__next">We'll follow up by email with your invoice and an estimated fulfillment timeline.</p>
+      <button type="button" class="btn btn--primary" id="orderModalClose">Done</button>
+    </div>
+  </div>
+</div>
 
 <script>window.__PORTAL_DATA__ = __PORTAL_DATA_JSON__;</script>
 <script src="/shared/app.js"></script>
