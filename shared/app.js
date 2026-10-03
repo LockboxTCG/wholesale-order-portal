@@ -273,6 +273,7 @@
       const lineTotal = q * unit;
       netSubtotal += lineTotal;
       ref.totalEl.textContent = fmt(lineTotal);
+      ref.totalEl.classList.toggle("is-zero", lineTotal === 0);
       TIER_ORDER.forEach((t) => {
         ref.chipEls[t].classList.toggle("is-active", t === tier);
       });

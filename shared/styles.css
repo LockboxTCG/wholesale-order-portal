@@ -603,6 +603,12 @@ input[type="number"]::-webkit-inner-spin-button {
     grid-column: 2;
     grid-row: 2;
     font-size: 14px;
+    text-align: center;
+  }
+
+  .row__total.is-zero {
+    font-weight: var(--fw-body);
+    color: var(--text-muted);
   }
 
   .row__chips {
@@ -619,13 +625,15 @@ input[type="number"]::-webkit-inner-spin-button {
   .row__name--swatch .row__msrp { padding-left: 18px; }
 
   .chip {
+    background: var(--cream-100);
+    border-color: var(--outline-soft);
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
     align-items: baseline;
     column-gap: 5px;
     row-gap: 3px;
-    padding: 6px 2px;
+    padding: 6px 4px;
   }
 
   .chip__tier { flex-basis: 100%; }
