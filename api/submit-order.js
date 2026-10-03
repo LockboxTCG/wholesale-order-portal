@@ -2,6 +2,23 @@
 
 const VARIANTS = require("./shopifyVariants.json");
 
+// Match product names ignoring dash style (a typed hyphen vs the long dash),
+// repeated spaces and letter case, so a hand-edited name in the Pricing Sheet
+// can't silently stop matching its Shopify variant.
+function normalizeName(name) {
+  return String(name || "")
+    .replace(/[\u2013\u2014]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+const VARIANT_BY_NAME = new Map(
+  Object.entries(VARIANTS)
+    .filter(([name]) => !name.startsWith("_"))
+    .map(([name, id]) => [normalizeName(name), id])
+);
+
 function fmt(n) {
   return "$" + n.toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
@@ -180,7 +197,7 @@ module.exports = async (req, res) => {
   for (const i of items) {
     const qty = Number(i.qty) || 0;
     if (qty <= 0) continue;
-    const variantId = VARIANTS[i.name];
+    const variantId = VARIANT_BY_NAME.get(normalizeName(i.name));
     if (!variantId) {
       res.status(500).json({ ok: false, error: `No Shopify product mapped for "${i.name}"` });
       return;
