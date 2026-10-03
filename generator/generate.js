@@ -8,6 +8,7 @@ const { loadAuth, getGrid, downloadLogo } = require("./lib/sheets");
 const { parseCatalog, parseTierThresholds } = require("./lib/parsePricing");
 const { parseCustomers } = require("./lib/parseCustomers");
 const { parsePriceOverrides, applyPriceOverrides } = require("./lib/priceOverrides");
+const { TEST_PORTALS } = require("./lib/testPortals");
 const { customerSlug } = require("./lib/slug");
 const { renderPage } = require("./lib/renderPage");
 const { isSendDay } = require("./lib/emailSchedule");
@@ -65,6 +66,8 @@ async function main() {
   const customerGrid = await getGrid(sheets, CUSTOMER_SHEET_ID);
   const customers = parseCustomers(customerGrid);
   console.log(`Parsed ${customers.length} customers.`);
+  customers.push(...TEST_PORTALS.map((t) => ({ ...t })));
+  console.log(`Added ${TEST_PORTALS.length} test portal(s) (not real customers).`);
 
   // Fail loudly on a slug collision (e.g. duplicate business names) rather
   // than silently letting two customers share one unlisted URL.

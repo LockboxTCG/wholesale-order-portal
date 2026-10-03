@@ -85,8 +85,10 @@ async function main() {
 
   console.log(`Summarizing ${monthLabel} (${isoDate(start)} to ${isoDate(end)})…`);
 
-  const orders = await fetchTaggedDraftOrders(shop, token, start, end);
-  console.log(`Found ${orders.length} tagged draft orders.`);
+  const allOrders = await fetchTaggedDraftOrders(shop, token, start, end);
+  // Orders placed from a test portal (see generator/lib/testPortals.js) start with "TEST".
+  const orders = allOrders.filter((o) => !/^TEST\b/.test(o.note2 || ""));
+  console.log(`Found ${orders.length} tagged draft orders (${allOrders.length - orders.length} test orders skipped).`);
 
   const auth = loadAuth();
   const sheets = google.sheets({ version: "v4", auth });
