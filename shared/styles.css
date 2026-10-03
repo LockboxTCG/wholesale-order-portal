@@ -339,8 +339,8 @@ input[type="number"]::-webkit-inner-spin-button {
   text-align: center;
   padding: 8px 4px;
   border-radius: var(--radius-sm);
-  border: var(--stroke-thin) solid transparent;
-  background: transparent;
+  border: var(--stroke-thin) solid var(--outline-soft);
+  background: var(--cream-100);
   color: var(--text-muted);
   box-shadow: none;
   transition: background var(--dur-fast) var(--ease-pop), border-color var(--dur-fast) var(--ease-pop);
@@ -831,8 +831,6 @@ input[type="number"]::-webkit-inner-spin-button {
   .row__name--swatch .row__msrp { padding-left: 18px; }
 
   .chip {
-    background: var(--cream-100);
-    border-color: var(--outline-soft);
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
