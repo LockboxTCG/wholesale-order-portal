@@ -3,11 +3,11 @@
 const VARIANTS = require("./shopifyVariants.json");
 
 // Match product names ignoring dash style (a typed hyphen vs the long dash),
-// repeated spaces and letter case, so a hand-edited name in the Pricing Sheet
-// can't silently stop matching its Shopify variant.
+// missing or repeated spaces around a dash, and letter case, so a hand-edited
+// name in the Pricing Sheet can't silently stop matching its Shopify variant.
 function normalizeName(name) {
   return String(name || "")
-    .replace(/[\u2013\u2014]/g, "-")
+    .replace(/\s*[\u2013\u2014-]\s*/g, " - ")
     .replace(/\s+/g, " ")
     .trim()
     .toLowerCase();
