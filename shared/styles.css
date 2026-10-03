@@ -535,28 +535,28 @@ input[type="number"]::-webkit-inner-spin-button {
 /* ---------- Responsive: collapse below the 1020px column ---------- */
 
 @media (max-width: 640px) {
-  /* Header: tighter, left-aligned, smaller logos */
+  /* Header: centered stack (logos, then label and month) with room at the top */
   .header__inner {
-    padding: 12px 16px;
+    padding: 24px 16px 20px;
     flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
+    align-items: center;
+    gap: 16px;
   }
 
-  .brand { gap: 12px; }
-  .brand__logo, .customer-logo { height: 40px; }
-  .customer-logo { max-width: 150px; }
+  .brand { gap: 14px; justify-content: center; }
+  .brand__logo, .customer-logo { height: 46px; }
+  .customer-logo { max-width: 170px; }
   .customer-slot { padding: 8px 12px; font-size: 12px; }
 
-  .order-meta { text-align: left; }
-  .order-meta__label { font-size: 10px; }
-  .order-meta__value { margin-top: 4px; font-size: 18px; }
+  .order-meta { text-align: center; }
+  .order-meta__label { font-size: 11px; letter-spacing: .16em; }
+  .order-meta__value { margin-top: 8px; font-size: 28px; letter-spacing: .08em; }
 
   /* Sticky tier bar: badge + both stats on one row, progress beneath */
   .tierbar__inner {
     grid-template-columns: auto 1fr 1fr;
-    gap: 6px 10px;
-    padding: 8px 16px 10px;
+    gap: 8px 10px;
+    padding: 10px 16px 12px;
   }
 
   .tier-badge { padding: 7px 12px; font-size: 11px; }
@@ -567,7 +567,7 @@ input[type="number"]::-webkit-inner-spin-button {
     min-width: 0;
   }
 
-  .progress__label { margin-bottom: 5px; font-size: 10px; }
+  .progress__label { margin-bottom: 6px; font-size: 10px; }
   .progress__track { height: 8px; }
 
   .stat { order: 2; }
