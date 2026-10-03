@@ -118,6 +118,7 @@
         swatch.style.backgroundColor = swatchColor;
         swatch.setAttribute("aria-hidden", "true");
         nameTitle.appendChild(swatch);
+        nameBlock.classList.add("row__name--swatch");
       }
       nameTitle.appendChild(document.createTextNode(p.name));
       const msrp = document.createElement("div");
