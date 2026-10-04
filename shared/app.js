@@ -219,7 +219,81 @@
     els.catalog.appendChild(card);
   });
 
+  buildFeedbackCard();
+
   els.submitBtn.addEventListener("click", submitOrder);
+
+  // ---------- feedback ----------
+
+  // A last card under the catalog where a customer can write to us. Posts to
+  // /api/submit-feedback, which forwards it to Slack and email.
+  function buildFeedbackCard() {
+    const card = document.createElement("section");
+    card.className = "category-card feedback";
+    card.innerHTML =
+      '<div class="gold-strap"></div>' +
+      '<div class="category-card__inner feedback__inner">' +
+      '<h2 class="category-title">Feedback</h2>' +
+      '<p class="feedback__lead">Missing a product, a pricing question, or an idea to make this easier? Tell us and it goes straight to the LockboxTCG team.</p>' +
+      '<textarea class="feedback__input" id="feedbackInput" rows="4" maxlength="2000" placeholder="Write your message here" aria-label="Your feedback"></textarea>' +
+      '<input class="feedback__trap" id="feedbackTrap" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">' +
+      '<div class="feedback__actions">' +
+      '<span class="feedback__status" id="feedbackStatus" role="status"></span>' +
+      '<button type="button" class="btn btn--primary" id="feedbackSend" disabled>Send feedback</button>' +
+      "</div>" +
+      "</div>";
+    els.catalog.appendChild(card);
+
+    const input = card.querySelector("#feedbackInput");
+    const trap = card.querySelector("#feedbackTrap");
+    const send = card.querySelector("#feedbackSend");
+    const status = card.querySelector("#feedbackStatus");
+    let sending = false;
+
+    function setStatus(text, isError) {
+      status.textContent = text;
+      status.classList.toggle("is-error", Boolean(isError));
+    }
+
+    input.addEventListener("input", () => {
+      send.disabled = sending || !input.value.trim();
+      if (status.textContent) setStatus("");
+    });
+
+    send.addEventListener("click", async () => {
+      const message = input.value.trim();
+      if (!message || sending) return;
+      sending = true;
+      send.disabled = true;
+      send.textContent = "Sending…";
+      setStatus("");
+      try {
+        const res = await fetch("/api/submit-feedback", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            slug: DATA.slug,
+            customerName: DATA.customerName,
+            customerEmail: DATA.customerEmail,
+            monthLabel: DATA.monthLabel,
+            message,
+            website: trap.value
+          })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.ok) throw new Error(data.error || "Could not send your feedback. Please try again.");
+        input.value = "";
+        setStatus("Thanks, we got your message.");
+        send.textContent = "Send feedback";
+      } catch (err) {
+        setStatus(err.message || "Could not send your feedback. Please try again.", true);
+        send.textContent = "Send feedback";
+        send.disabled = !input.value.trim();
+      } finally {
+        sending = false;
+      }
+    });
+  }
 
   // ---------- submit ----------
 
