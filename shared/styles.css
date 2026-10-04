@@ -783,11 +783,55 @@ input[type="number"]::-webkit-inner-spin-button {
   .figure__value--label {
     font-size: 24px;
   }
+
+  .submit-note {
+    max-width: 380px;
+  }
+
+  /* Line total as a light box, like the price chips, instead of loose text */
+  .row__total {
+    padding: 13px 8px;
+    text-align: center;
+    border: var(--stroke-thin) solid var(--outline-soft);
+    border-radius: var(--radius-sm);
+    background: var(--cream-100);
+  }
+
+  .row__total.is-zero {
+    font-weight: var(--fw-body);
+    color: var(--text-muted);
+  }
 }
 
+/* Big monitors: run the column nearly edge to edge */
 @media (min-width: 1400px) {
+  .header__inner,
+  .tierbar__inner,
+  .catalog,
+  .footerbar__inner,
+  .order-banner__inner {
+    max-width: min(1900px, calc(100vw - 64px));
+  }
+
   .row {
-    grid-template-columns: 1fr 420px 96px 150px;
+    grid-template-columns: 1fr 440px 100px 160px;
+  }
+}
+
+@media (min-width: 1800px) {
+  :root {
+    --fs-head-sm: 26px;
+    --fs-body-lg: 23px;
+    --fs-body-md: 20px;
+    --fs-body-sm: 18px;
+    --fs-body-xs: 15px;
+  }
+
+  .chip__tier { font-size: 13px; }
+  .chip__discount { font-size: 14px; }
+
+  .row {
+    grid-template-columns: 1fr 500px 110px 180px;
   }
 }
 
