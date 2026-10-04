@@ -275,6 +275,7 @@
             slug: DATA.slug,
             customerName: DATA.customerName,
             customerEmail: DATA.customerEmail,
+            contactName: DATA.contactName || null,
             monthLabel: DATA.monthLabel,
             message,
             website: trap.value
@@ -333,6 +334,8 @@
           slug: DATA.slug,
           customerName: DATA.customerName,
           customerEmail: DATA.customerEmail,
+          contactName: DATA.contactName || null,
+          newCustomer: Boolean(DATA.intake),
           monthLabel: DATA.monthLabel,
           tier,
           items,
@@ -565,6 +568,113 @@
       els.submitNote.textContent = "Sends your order straight to LockboxTCG";
     }
   }
+
+  // ---------- new-customer sign-up ----------
+
+  // The shared portal for stores that are not in the directory starts with a
+  // short form. What they enter becomes the customer on their order (and on
+  // feedback). It is remembered on this device so a return visit goes
+  // straight to the order form; the sign-up alert is sent once, on first entry.
+  function initIntake() {
+    const INTAKE_KEY = "lockbox-intake:" + DATA.slug;
+    const modal = document.getElementById("intakeModal");
+    const form = document.getElementById("intakeForm");
+    const fName = document.getElementById("intakeName");
+    const fEmail = document.getElementById("intakeEmail");
+    const fCompany = document.getElementById("intakeCompany");
+    const fTrap = document.getElementById("intakeTrap");
+    const errorEl = document.getElementById("intakeError");
+    const cancel = document.getElementById("intakeCancel");
+    const submit = document.getElementById("intakeSubmit");
+    const EMAIL_RE = /^[^\s@<>,;]+@[^\s@<>,;]+\.[^\s@<>,;]+$/;
+    let info = null;
+    let busy = false;
+
+    try {
+      const saved = JSON.parse(localStorage.getItem(INTAKE_KEY) || "null");
+      if (saved && saved.name && saved.email && saved.company) info = saved;
+    } catch (e) {
+      /* storage blocked: they just fill it in again */
+    }
+
+    function showSlot() {
+      els.customerSlot.textContent = "";
+      const label = document.createElement("span");
+      label.textContent = info.company;
+      const edit = document.createElement("button");
+      edit.type = "button";
+      edit.className = "customer-slot__edit";
+      edit.textContent = "Edit";
+      edit.addEventListener("click", openForm);
+      els.customerSlot.appendChild(label);
+      els.customerSlot.appendChild(edit);
+    }
+
+    function apply() {
+      DATA.customerName = info.company;
+      DATA.customerEmail = info.email;
+      DATA.contactName = info.name;
+      showSlot();
+    }
+
+    function openForm() {
+      fName.value = info ? info.name : "";
+      fEmail.value = info ? info.email : "";
+      fCompany.value = info ? info.company : "";
+      errorEl.textContent = "";
+      cancel.hidden = !info;
+      modal.hidden = false;
+      document.body.style.overflow = "hidden";
+      fName.focus();
+    }
+
+    function closeForm() {
+      modal.hidden = true;
+      document.body.style.overflow = "";
+    }
+
+    cancel.addEventListener("click", closeForm);
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (busy) return;
+      const next = { name: fName.value.trim(), email: fEmail.value.trim(), company: fCompany.value.trim() };
+      if (!next.name || !next.company) {
+        errorEl.textContent = "Please enter your name and your store or company.";
+        return;
+      }
+      if (!EMAIL_RE.test(next.email)) {
+        errorEl.textContent = "Please enter a valid email address.";
+        return;
+      }
+      errorEl.textContent = "";
+      const firstTime = !info;
+      info = next;
+      try {
+        localStorage.setItem(INTAKE_KEY, JSON.stringify(info));
+      } catch (err) {
+        /* ignore */
+      }
+      apply();
+      closeForm();
+      if (firstTime) {
+        // Alert to the team; never blocks the visitor.
+        fetch("/api/new-customer", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ slug: DATA.slug, ...info, website: fTrap.value })
+        }).catch(() => {});
+      }
+    });
+
+    if (info) apply();
+    else {
+      els.customerSlot.textContent = "New customer";
+      openForm();
+    }
+  }
+
+  if (DATA.intake) initIntake();
 
   const remembered = recallOrder();
   if (remembered) {

@@ -6,10 +6,11 @@ const path = require("path");
 const TEMPLATE_PATH = path.join(__dirname, "..", "template", "portal.template.html");
 const template = fs.readFileSync(TEMPLATE_PATH, "utf8");
 
-function renderPage({ customerName, customerEmail, monthLabel, slug, logoPath, catalog, tierThresholds }) {
+function renderPage({ customerName, customerEmail, intake, monthLabel, slug, logoPath, catalog, tierThresholds }) {
   const portalData = {
     customerName,
     customerEmail: customerEmail || null,
+    intake: Boolean(intake),
     monthLabel,
     slug,
     logoPath: logoPath || null,

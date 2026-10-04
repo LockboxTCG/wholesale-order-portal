@@ -16,7 +16,14 @@ function encodeHeader(str) {
   return "=?UTF-8?B?" + Buffer.from(str, "utf8").toString("base64") + "?=";
 }
 
+// Header values can come from a public form, so line breaks are stripped to
+// stop anyone adding their own headers (a hidden Bcc, for example).
+const oneLine = (v) => String(v).replace(/[\r\n]+/g, " ").trim();
+
 function buildEmail({ to, from, subject, body, replyTo }) {
+  to = oneLine(to);
+  from = oneLine(from);
+  if (replyTo) replyTo = oneLine(replyTo);
   const lines = [
     `To: ${to}`,
     `From: ${from}`,

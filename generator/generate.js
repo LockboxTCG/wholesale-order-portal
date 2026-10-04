@@ -9,6 +9,7 @@ const { parseCatalog, parseTierThresholds } = require("./lib/parsePricing");
 const { parseCustomers } = require("./lib/parseCustomers");
 const { parsePriceOverrides, applyPriceOverrides } = require("./lib/priceOverrides");
 const { attachProductLinks } = require("./lib/productLinks");
+const { NEW_CUSTOMER_PORTAL } = require("./lib/newCustomerPortal");
 const { TEST_PORTALS } = require("./lib/testPortals");
 const { customerSlug } = require("./lib/slug");
 const { renderPage } = require("./lib/renderPage");
@@ -73,6 +74,8 @@ async function main() {
   console.log(`Parsed ${customers.length} customers.`);
   customers.push(...TEST_PORTALS.map((t) => ({ ...t })));
   console.log(`Added ${TEST_PORTALS.length} test portal(s) (not real customers).`);
+  customers.push({ ...NEW_CUSTOMER_PORTAL });
+  console.log("Added the new-customer sign-up portal.");
 
   // Fail loudly on a slug collision (e.g. duplicate business names) rather
   // than silently letting two customers share one unlisted URL.
@@ -135,6 +138,7 @@ async function main() {
     const html = renderPage({
       customerName: c.businessName,
       customerEmail: c.contactEmail,
+      intake: Boolean(c.intake),
       monthLabel,
       slug: c.slug,
       logoPath,

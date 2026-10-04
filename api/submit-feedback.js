@@ -17,7 +17,7 @@ function oneLine(text) {
   return String(text || "").replace(/[\r\n]+/g, " ").trim();
 }
 
-async function sendFeedbackEmail({ accessToken, customerName, customerEmail, monthLabel, slug, message }) {
+async function sendFeedbackEmail({ accessToken, customerName, customerEmail, contactName, monthLabel, slug, message }) {
   const to = process.env.GMAIL_NOTIFY_TO || "management@lockboxtcg.com";
   const raw = buildEmail({
     to,
@@ -25,7 +25,7 @@ async function sendFeedbackEmail({ accessToken, customerName, customerEmail, mon
     replyTo: customerEmail || undefined,
     subject: `Portal feedback: ${customerName}`,
     body: [
-      `${customerName} sent feedback from the wholesale portal (${monthLabel || "no month"}).`,
+      `${customerName}${contactName ? " (" + contactName + ")" : ""} sent feedback from the wholesale portal (${monthLabel || "no month"}).`,
       customerEmail ? `Reply to this email to answer them at ${customerEmail}.` : "No contact email on file for this customer.",
       "",
       message,
@@ -36,12 +36,12 @@ async function sendFeedbackEmail({ accessToken, customerName, customerEmail, mon
   await gmailSend(accessToken, raw);
 }
 
-async function sendFeedbackSlack({ customerName, monthLabel, message }) {
+async function sendFeedbackSlack({ customerName, contactName, monthLabel, message }) {
   const res = await fetch(requireEnv("SLACK_WEBHOOK_URL"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      text: `*Portal feedback: ${slackEscape(customerName)}* (${slackEscape(monthLabel || "")})\n>${slackEscape(message).replace(/\n/g, "\n>")}`
+      text: `*Portal feedback: ${slackEscape(customerName)}${contactName ? " (" + slackEscape(contactName) + ")" : ""}* (${slackEscape(monthLabel || "")})\n>${slackEscape(message).replace(/\n/g, "\n>")}`
     })
   });
   if (!res.ok) {
@@ -65,7 +65,7 @@ module.exports = async (req, res) => {
     }
   }
 
-  const { slug, customerName, customerEmail, monthLabel, message, website } = body || {};
+  const { slug, customerName, customerEmail, contactName, monthLabel, message, website } = body || {};
 
   // Hidden field a person never fills in; a bot that does gets a normal-looking
   // success so it learns nothing.
@@ -87,6 +87,7 @@ module.exports = async (req, res) => {
   const args = {
     customerName: oneLine(customerName).slice(0, 200),
     customerEmail: EMAIL_RE.test(oneLine(customerEmail)) ? oneLine(customerEmail) : "",
+    contactName: oneLine(contactName).slice(0, 100),
     monthLabel: oneLine(monthLabel).slice(0, 50),
     slug: oneLine(slug).slice(0, 100),
     message: text

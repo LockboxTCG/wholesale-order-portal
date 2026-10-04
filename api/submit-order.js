@@ -3,6 +3,8 @@
 const VARIANTS = require("./shopifyVariants.json");
 const { requireEnv, buildEmail, getGmailAccessToken, gmailSend } = require("./_gmail");
 
+const EMAIL_RE = /^[^\s@<>,;]+@[^\s@<>,;]+\.[^\s@<>,;]+$/;
+
 // Match product names ignoring dash style (a typed hyphen vs the long dash),
 // missing or repeated spaces around a dash, and letter case, so a hand-edited
 // name in the Pricing Sheet can't silently stop matching its Shopify variant.
@@ -40,15 +42,18 @@ const DRAFT_ORDER_CREATE = `
   }
 `;
 
-async function sendNotificationEmail({ accessToken, customerName, monthLabel, tier, netSubtotal, adminUrl }) {
+async function sendNotificationEmail({ accessToken, customerName, contactName, customerEmail, newCustomer, monthLabel, tier, netSubtotal, adminUrl }) {
   const to = process.env.GMAIL_NOTIFY_TO || "management@lockboxtcg.com";
 
   const raw = buildEmail({
     to,
     from: to,
-    subject: `New wholesale order — ${customerName} — ${monthLabel || ""}`,
+    subject: `New wholesale order${newCustomer ? " (new customer)" : ""} — ${customerName} — ${monthLabel || ""}`,
     body: [
       `${customerName} just submitted a ${tier} tier order (${fmt(netSubtotal)}).`,
+      ...(newCustomer
+        ? ["", "They are not in the customer directory. Contact: " + contactName + " <" + customerEmail + ">"]
+        : []),
       "",
       `Review it in Shopify: ${adminUrl}`
     ].join("\n")
@@ -87,11 +92,12 @@ async function sendCustomerConfirmationEmail({ accessToken, customerEmail, month
   await gmailSend(accessToken, raw);
 }
 
-async function sendSlackNotification({ customerName, monthLabel, tier, netSubtotal, adminUrl }) {
+async function sendSlackNotification({ customerName, contactName, customerEmail, newCustomer, monthLabel, tier, netSubtotal, adminUrl }) {
   const webhookUrl = requireEnv("SLACK_WEBHOOK_URL");
 
   const text =
-    `*New wholesale order — ${customerName} — ${monthLabel || ""}*\n` +
+    `*New wholesale order${newCustomer ? " (new customer)" : ""} — ${customerName} — ${monthLabel || ""}*\n` +
+    (newCustomer ? `Not in the directory. Contact: ${contactName} <${customerEmail}>\n` : "") +
     `Tier: ${tier} · Subtotal: ${fmt(netSubtotal)}\n` +
     `<${adminUrl}|Review it in Shopify>`;
 
@@ -121,10 +127,19 @@ module.exports = async (req, res) => {
     }
   }
 
-  const { slug, customerName, customerEmail, monthLabel, tier, items, grossValue, netSubtotal, saved } = body || {};
+  const { slug, customerName, customerEmail, contactName, newCustomer, monthLabel, tier, items, grossValue, netSubtotal, saved } = body || {};
 
   if (!customerName || !Array.isArray(items)) {
     res.status(400).json({ ok: false, error: "Malformed order payload" });
+    return;
+  }
+
+  // The shared sign-up portal has no directory record behind it, so the
+  // details typed into its form are all we have: require them, and make sure
+  // the email is a single plain address before anything is sent to it.
+  const isNew = newCustomer === true;
+  if (isNew && (!String(contactName || "").trim() || !EMAIL_RE.test(String(customerEmail || "").trim()))) {
+    res.status(400).json({ ok: false, error: "Please enter your name and a valid email address." });
     return;
   }
 
@@ -164,6 +179,7 @@ module.exports = async (req, res) => {
   }
 
   const noteLines = [
+    ...(isNew ? ["NEW CUSTOMER (not in the directory)", `Contact: ${String(contactName).trim()}`] : []),
     `${customerName}${customerEmail ? " <" + customerEmail + ">" : ""}`,
     `Portal: ${slug || "(unknown)"}`,
     `Month: ${monthLabel || ""}`,
@@ -188,7 +204,8 @@ module.exports = async (req, res) => {
           input: {
             lineItems,
             note: noteLines,
-            tags: ["wholesale-portal"]
+            tags: isNew ? ["wholesale-portal", "new-customer"] : ["wholesale-portal"],
+            ...(isNew ? { email: String(customerEmail).trim() } : {})
           }
         }
       })
@@ -212,7 +229,16 @@ module.exports = async (req, res) => {
     const shopHandle = shop.replace(/\.myshopify\.com$/, "");
     const adminUrl = `https://admin.shopify.com/store/${shopHandle}/draft_orders/${numericId}`;
     const netSubtotalNum = Number(netSubtotal) || 0;
-    const notifyArgs = { customerName, monthLabel, tier, netSubtotal: netSubtotalNum, adminUrl };
+    const notifyArgs = {
+      customerName,
+      contactName: isNew ? String(contactName).trim() : "",
+      customerEmail: isNew ? String(customerEmail).trim() : "",
+      newCustomer: isNew,
+      monthLabel,
+      tier,
+      netSubtotal: netSubtotalNum,
+      adminUrl
+    };
 
     let gmailAccessToken = null;
     try {
@@ -228,7 +254,7 @@ module.exports = async (req, res) => {
         console.error("Order notification email failed (order was still created):", notifyErr);
       }
 
-      if (customerEmail) {
+      if (customerEmail && EMAIL_RE.test(String(customerEmail).trim())) {
         try {
           await sendCustomerConfirmationEmail({
             accessToken: gmailAccessToken,

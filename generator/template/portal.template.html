@@ -104,6 +104,37 @@
   </div>
 </div>
 
+<div class="order-modal" id="intakeModal" hidden>
+  <div class="order-modal__backdrop"></div>
+  <form class="order-modal__panel" id="intakeForm" role="dialog" aria-modal="true" aria-labelledby="intakeTitle" tabindex="-1" novalidate>
+    <div class="gold-strap"></div>
+    <div class="order-modal__body">
+      <h2 class="order-modal__title" id="intakeTitle">Welcome to Lockbox wholesale</h2>
+      <p class="order-modal__lead">Tell us who you are and we'll open this month's order form.</p>
+      <div class="intake__fields">
+        <label class="field">
+          <span class="field__label">Your name</span>
+          <input class="field__input" id="intakeName" type="text" autocomplete="name" maxlength="100">
+        </label>
+        <label class="field">
+          <span class="field__label">Email</span>
+          <input class="field__input" id="intakeEmail" type="email" autocomplete="email" maxlength="200">
+        </label>
+        <label class="field">
+          <span class="field__label">Store or company</span>
+          <input class="field__input" id="intakeCompany" type="text" autocomplete="organization" maxlength="150">
+        </label>
+        <input class="feedback__trap" id="intakeTrap" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+      </div>
+      <p class="intake__error" id="intakeError" role="alert"></p>
+      <div class="intake__actions">
+        <button type="button" class="btn-ghost" id="intakeCancel" hidden>Cancel</button>
+        <button type="submit" class="btn btn--primary" id="intakeSubmit">Continue</button>
+      </div>
+    </div>
+  </form>
+</div>
+
 <script>window.__PORTAL_DATA__ = __PORTAL_DATA_JSON__;</script>
 <script src="/shared/app.js"></script>
 </body>
