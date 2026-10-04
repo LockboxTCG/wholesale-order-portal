@@ -757,6 +757,38 @@ input[type="number"]::-webkit-inner-spin-button {
   .row__chips {
     gap: 10px;
   }
+
+  /* Larger type so the extra width reads as content, not empty space */
+  :root {
+    --fs-head-sm: 24px;
+    --fs-body-lg: 21px;
+    --fs-body-md: 18px;
+    --fs-body-sm: 16px;
+    --fs-body-xs: 14px;
+  }
+
+  .chip {
+    padding: 10px 6px;
+  }
+
+  .chip__tier {
+    font-size: 12px;
+  }
+
+  .chip__discount {
+    font-size: 13px;
+  }
+
+  .figure__value,
+  .figure__value--label {
+    font-size: 24px;
+  }
+}
+
+@media (min-width: 1400px) {
+  .row {
+    grid-template-columns: 1fr 420px 96px 150px;
+  }
 }
 
 /* ---------- Responsive: collapse below the 1020px column ---------- */
