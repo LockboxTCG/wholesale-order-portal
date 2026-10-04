@@ -135,7 +135,17 @@
         nameTitle.appendChild(swatch);
         nameBlock.classList.add("row__name--swatch");
       }
-      nameTitle.appendChild(document.createTextNode(p.name));
+      if (p.url) {
+        const link = document.createElement("a");
+        link.className = "row__name-link";
+        link.href = p.url;
+        link.target = "_blank";
+        link.rel = "noopener";
+        link.textContent = p.name;
+        nameTitle.appendChild(link);
+      } else {
+        nameTitle.appendChild(document.createTextNode(p.name));
+      }
       const msrp = document.createElement("div");
       msrp.className = "row__msrp";
       msrp.textContent = "MSRP " + fmt(p.msrp);

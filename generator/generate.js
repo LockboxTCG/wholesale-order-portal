@@ -8,6 +8,7 @@ const { loadAuth, getGrid, downloadLogo } = require("./lib/sheets");
 const { parseCatalog, parseTierThresholds } = require("./lib/parsePricing");
 const { parseCustomers } = require("./lib/parseCustomers");
 const { parsePriceOverrides, applyPriceOverrides } = require("./lib/priceOverrides");
+const { attachProductLinks } = require("./lib/productLinks");
 const { TEST_PORTALS } = require("./lib/testPortals");
 const { customerSlug } = require("./lib/slug");
 const { renderPage } = require("./lib/renderPage");
@@ -56,7 +57,11 @@ async function main() {
 
   console.log("Fetching pricing sheet…");
   const pricingGrid = await getGrid(sheets, PRICING_SHEET_ID);
-  const catalog = parseCatalog(pricingGrid);
+  const linkedCatalog = attachProductLinks(parseCatalog(pricingGrid));
+  const catalog = linkedCatalog.catalog;
+  for (const name of linkedCatalog.missing) {
+    console.warn(`No product page link for "${name}" - add it to generator/lib/productLinks.json.`);
+  }
   const tierThresholds = parseTierThresholds(pricingGrid);
   console.log(
     `Parsed ${catalog.length} categories, ${catalog.reduce((n, c) => n + c.products.length, 0)} products.`
