@@ -51,6 +51,8 @@
   };
 
   function resolveTier(grossValue) {
+    // A portal can be pinned to one tier (priced that way from the first item).
+    if (DATA.lockedTier) return DATA.lockedTier;
     if (grossValue >= TIER_THRESHOLDS.Volume) return "Volume";
     if (grossValue >= TIER_THRESHOLDS.Growth) return "Growth";
     if (grossValue >= TIER_THRESHOLDS.Starter) return "Starter";
@@ -518,6 +520,9 @@
       const toGo = TIER_THRESHOLDS.Starter - grossValue;
       progressLabel = toGo > 0 ? fmt(toGo) + " to unlock Starter pricing" : "Starter pricing unlocked";
       pct = Math.min(100, (grossValue / TIER_THRESHOLDS.Starter) * 100);
+    } else if (DATA.lockedTier) {
+      progressLabel = DATA.lockedTier + " pricing on every order";
+      pct = 100;
     } else if (tier === "Volume") {
       progressLabel = "Top tier unlocked";
       pct = 100;
@@ -562,6 +567,8 @@
       els.submitNote.textContent = "Sending…";
     } else if (alreadySent) {
       els.submitNote.textContent = "Sent to LockboxTCG. Change your quantities to place another order.";
+    } else if (belowMinimum && DATA.lockedTier) {
+      els.submitNote.textContent = "Add items to place an order";
     } else if (belowMinimum) {
       els.submitNote.textContent = "Add at least $" + TIER_THRESHOLDS.Starter + " (MSRP) to submit an order";
     } else {

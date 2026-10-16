@@ -10,6 +10,7 @@ const { parseCustomers } = require("./lib/parseCustomers");
 const { parsePriceOverrides, applyPriceOverrides } = require("./lib/priceOverrides");
 const { attachProductLinks } = require("./lib/productLinks");
 const { NEW_CUSTOMER_PORTAL } = require("./lib/newCustomerPortal");
+const { SPECIAL_PORTALS } = require("./lib/specialPortals");
 const { TEST_PORTALS } = require("./lib/testPortals");
 const { customerSlug } = require("./lib/slug");
 const { renderPage } = require("./lib/renderPage");
@@ -75,6 +76,8 @@ async function main() {
   customers.push(...TEST_PORTALS.map((t) => ({ ...t })));
   console.log(`Added ${TEST_PORTALS.length} test portal(s) (not real customers).`);
   customers.push({ ...NEW_CUSTOMER_PORTAL });
+  customers.push(...SPECIAL_PORTALS.map((p) => ({ ...p })));
+  console.log(`Added ${SPECIAL_PORTALS.length} special portal(s).`);
   console.log("Added the new-customer sign-up portal.");
 
   // Fail loudly on a slug collision (e.g. duplicate business names) rather
@@ -108,7 +111,11 @@ async function main() {
     fs.mkdirSync(customerDir, { recursive: true });
 
     let logoPath = null;
-    if (c.logoUrl) {
+    if (c.logoFile) {
+      const fileName = "logo" + path.extname(c.logoFile).toLowerCase();
+      fs.copyFileSync(path.join(ROOT, "generator", "assets", "logos", c.logoFile), path.join(customerDir, fileName));
+      logoPath = `/c/${c.slug}/${fileName}`;
+    } else if (c.logoUrl) {
       try {
         const logo = await downloadLogo(drive, c.logoUrl);
         if (logo) {
@@ -139,6 +146,7 @@ async function main() {
       customerName: c.businessName,
       customerEmail: c.contactEmail,
       intake: Boolean(c.intake),
+      lockedTier: c.lockedTier,
       monthLabel,
       slug: c.slug,
       logoPath,
