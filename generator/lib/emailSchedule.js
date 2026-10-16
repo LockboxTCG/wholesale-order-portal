@@ -51,4 +51,14 @@ function isRemindDay(date = new Date()) {
   return isMonday(date) && day >= 15 && day <= 21;
 }
 
-module.exports = { isSendDay, isRemindDay, TRANSITION_FLOOR };
+// The reminder replies to the most recent monthly send. Normally that is this
+// month's state file; in the Sept 28 / Oct 12 transition the send was
+// recorded under 2026-09 while the reminder runs in October, so fall back to
+// the newest earlier file instead of failing. Never uses a later month's.
+function findStateKey(existingKeys, currentKey) {
+  if (existingKeys.includes(currentKey)) return currentKey;
+  const earlier = existingKeys.filter((k) => k < currentKey).sort();
+  return earlier.length ? earlier[earlier.length - 1] : null;
+}
+
+module.exports = { isSendDay, isRemindDay, findStateKey, TRANSITION_FLOOR };

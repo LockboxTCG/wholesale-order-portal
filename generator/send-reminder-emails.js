@@ -12,7 +12,7 @@ const fs = require("fs");
 const path = require("path");
 
 const { getAccessToken, buildRawEmail, sendEmail } = require("./lib/gmailSend");
-const { isRemindDay } = require("./lib/emailSchedule");
+const { isRemindDay, findStateKey } = require("./lib/emailSchedule");
 const { buildReminderSubject, buildReminderBody } = require("./lib/reminderEmail");
 const { sendInBatches } = require("./lib/batchSend");
 
@@ -38,14 +38,20 @@ async function main() {
   const SITE_ORIGIN = process.env.SITE_ORIGIN || "https://wholesale.lockboxtcg.com";
   const PORTAL_SLUG_SECRET = requireEnv("PORTAL_SLUG_SECRET");
 
-  const key = monthKey(now);
-  const statePath = path.join(ROOT, "state", "email-threads", `${key}.json`);
-
-  if (!fs.existsSync(statePath)) {
+  const stateDir = path.join(ROOT, "state", "email-threads");
+  const existing = fs.existsSync(stateDir)
+    ? fs.readdirSync(stateDir).filter((f) => /^\d{4}-\d{2}\.json$/.test(f)).map((f) => f.replace(".json", ""))
+    : [];
+  const key = findStateKey(existing, monthKey(now));
+  if (!key) {
     throw new Error(
-      `${statePath} does not exist — no monthly email was recorded as sent for ${key}, so there's nothing to remind.`
+      `No monthly email was recorded as sent on or before ${monthKey(now)} (looked in ${stateDir}), so there's nothing to remind.`
     );
   }
+  if (key !== monthKey(now)) {
+    console.log(`No ${monthKey(now)} state file; replying to the ${key} send instead.`);
+  }
+  const statePath = path.join(stateDir, `${key}.json`);
   const state = JSON.parse(fs.readFileSync(statePath, "utf8"));
   const slugs = Object.keys(state);
   console.log(`Loaded ${slugs.length} threads from ${statePath}.`);
