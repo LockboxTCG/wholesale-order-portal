@@ -2,6 +2,7 @@
 
 const VARIANTS = require("./shopifyVariants.json");
 const { requireEnv, buildEmail, getGmailAccessToken, gmailSend } = require("./_gmail");
+const { resolveCompany } = require("./_shopifyCompany");
 
 const EMAIL_RE = /^[^\s@<>,;]+@[^\s@<>,;]+\.[^\s@<>,;]+$/;
 
@@ -42,7 +43,7 @@ const DRAFT_ORDER_CREATE = `
   }
 `;
 
-async function sendNotificationEmail({ accessToken, customerName, contactName, customerEmail, newCustomer, monthLabel, tier, netSubtotal, adminUrl }) {
+async function sendNotificationEmail({ accessToken, customerName, contactName, customerEmail, newCustomer, monthLabel, tier, netSubtotal, adminUrl, companyLine }) {
   const to = process.env.GMAIL_NOTIFY_TO || "management@lockboxtcg.com";
 
   const raw = buildEmail({
@@ -54,6 +55,8 @@ async function sendNotificationEmail({ accessToken, customerName, contactName, c
       ...(newCustomer
         ? ["", "They are not in the customer directory. Contact: " + contactName + " <" + customerEmail + ">"]
         : []),
+      "",
+      companyLine,
       "",
       `Review it in Shopify: ${adminUrl}`
     ].join("\n")
@@ -92,13 +95,14 @@ async function sendCustomerConfirmationEmail({ accessToken, customerEmail, month
   await gmailSend(accessToken, raw);
 }
 
-async function sendSlackNotification({ customerName, contactName, customerEmail, newCustomer, monthLabel, tier, netSubtotal, adminUrl }) {
+async function sendSlackNotification({ customerName, contactName, customerEmail, newCustomer, monthLabel, tier, netSubtotal, adminUrl, companyLine }) {
   const webhookUrl = requireEnv("SLACK_WEBHOOK_URL");
 
   const text =
     `*New wholesale order${newCustomer ? " (new customer)" : ""} — ${customerName} — ${monthLabel || ""}*\n` +
     (newCustomer ? `Not in the directory. Contact: ${contactName} <${customerEmail}>\n` : "") +
     `Tier: ${tier} · Subtotal: ${fmt(netSubtotal)}\n` +
+    `${companyLine}\n` +
     `<${adminUrl}|Review it in Shopify>`;
 
   const res = await fetch(webhookUrl, {
@@ -127,7 +131,7 @@ module.exports = async (req, res) => {
     }
   }
 
-  const { slug, customerName, customerEmail, contactName, newCustomer, monthLabel, tier, items, grossValue, netSubtotal, saved } = body || {};
+  const { slug, customerName, customerEmail, contactName, companyName, newCustomer, monthLabel, tier, items, grossValue, netSubtotal, saved } = body || {};
 
   if (!customerName || !Array.isArray(items)) {
     res.status(400).json({ ok: false, error: "Malformed order payload" });
@@ -178,45 +182,98 @@ module.exports = async (req, res) => {
     });
   }
 
-  const noteLines = [
-    ...(isNew ? ["NEW CUSTOMER (not in the directory)", `Contact: ${String(contactName).trim()}`] : []),
-    `${customerName}${customerEmail ? " <" + customerEmail + ">" : ""}`,
-    `Portal: ${slug || "(unknown)"}`,
-    `Month: ${monthLabel || ""}`,
-    `Tier: ${tier}`,
-    `Subtotal: ${fmt(Number(netSubtotal) || 0)}`,
-    `Discount applied: ${fmt(Number(saved) || 0)} (list price ${fmt(Number(grossValue) || 0)})`
-  ].join("\n");
+  const buildNote = (companyLine) =>
+    [
+      ...(isNew ? ["NEW CUSTOMER (not in the directory)", `Contact: ${String(contactName).trim()}`] : []),
+      `${customerName}${customerEmail ? " <" + customerEmail + ">" : ""}`,
+      ...(companyLine ? [companyLine] : []),
+      `Portal: ${slug || "(unknown)"}`,
+      `Month: ${monthLabel || ""}`,
+      `Tier: ${tier}`,
+      `Subtotal: ${fmt(Number(netSubtotal) || 0)}`,
+      `Discount applied: ${fmt(Number(saved) || 0)} (list price ${fmt(Number(grossValue) || 0)})`
+    ].join("\n");
 
   try {
     const shop = requireEnv("SHOPIFY_SHOP");
     const token = requireEnv("SHOPIFY_ACCESS_TOKEN");
 
-    const shopifyRes = await fetch(`https://${shop}/admin/api/2026-07/graphql.json`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Shopify-Access-Token": token
-      },
-      body: JSON.stringify({
-        query: DRAFT_ORDER_CREATE,
-        variables: {
-          input: {
-            lineItems,
-            note: noteLines,
-            tags: isNew ? ["wholesale-portal", "new-customer"] : ["wholesale-portal"],
-            ...(isNew ? { email: String(customerEmail).trim() } : {})
-          }
+    const endpoint = `https://${shop}/admin/api/2026-07/graphql.json`;
+    const shopifyFetch = (query, variables) =>
+      fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Shopify-Access-Token": token },
+        body: JSON.stringify({ query, variables })
+      });
+    const gql = async (query, variables) => {
+      const r = await shopifyFetch(query, variables);
+      const json = await r.json();
+      if (!r.ok || json.errors) throw new Error(JSON.stringify(json.errors || json));
+      return json.data;
+    };
+
+    // Attach the order to the customer's Shopify company (found, or created
+    // if they have none). Anything going wrong here must never lose the
+    // order: it falls back to a plain draft order and says so in the alert.
+    let company = null;
+    let companyProblem = null;
+    try {
+      company = await resolveCompany({
+        gql,
+        companyName: String(companyName || customerName || "").trim(),
+        contactName,
+        contactEmail: customerEmail
+      });
+    } catch (companyErr) {
+      companyProblem = companyErr.message || String(companyErr);
+      console.error("Could not attach a Shopify company (order will be created without one):", companyErr);
+    }
+
+    const baseInput = {
+      lineItems,
+      tags: isNew ? ["wholesale-portal", "new-customer"] : ["wholesale-portal"]
+    };
+    const withCompany = () => ({
+      ...baseInput,
+      note: buildNote(`Shopify company: ${company.companyName} (${company.status === "created" ? "created automatically" : "matched"})`),
+      purchasingEntity: {
+        purchasingCompany: {
+          companyId: company.companyId,
+          companyContactId: company.contactId,
+          companyLocationId: company.locationId
         }
-      })
+      }
+    });
+    const withoutCompany = () => ({
+      ...baseInput,
+      note: buildNote("Shopify company: NOT attached, please attach it by hand"),
+      ...(isNew ? { email: String(customerEmail).trim() } : {})
     });
 
-    const data = await shopifyRes.json();
-    const userErrors = data?.data?.draftOrderCreate?.userErrors || [];
-    if (!shopifyRes.ok || data.errors || userErrors.length > 0) {
-      console.error("draftOrderCreate failed:", JSON.stringify(data.errors || userErrors));
-      res.status(502).json({ ok: false, error: "Could not create the draft order. Please try again shortly." });
-      return;
+    let data = null;
+    let attached = false;
+    if (company) {
+      const r = await shopifyFetch(DRAFT_ORDER_CREATE, { input: withCompany() });
+      const d = await r.json();
+      const errs = d?.data?.draftOrderCreate?.userErrors || [];
+      if (r.ok && !d.errors && errs.length === 0) {
+        data = d;
+        attached = true;
+      } else {
+        companyProblem = "draft order rejected the company: " + JSON.stringify(d.errors || errs);
+        console.error("draftOrderCreate with company failed, retrying without it:", companyProblem);
+      }
+    }
+    if (!data) {
+      const r = await shopifyFetch(DRAFT_ORDER_CREATE, { input: withoutCompany() });
+      const d = await r.json();
+      const errs = d?.data?.draftOrderCreate?.userErrors || [];
+      if (!r.ok || d.errors || errs.length > 0) {
+        console.error("draftOrderCreate failed:", JSON.stringify(d.errors || errs));
+        res.status(502).json({ ok: false, error: "Could not create the draft order. Please try again shortly." });
+        return;
+      }
+      data = d;
     }
 
     // The draft order is already safely created at this point — a failure
@@ -237,7 +294,10 @@ module.exports = async (req, res) => {
       monthLabel,
       tier,
       netSubtotal: netSubtotalNum,
-      adminUrl
+      adminUrl,
+      companyLine: attached
+        ? `Shopify company: ${company.companyName} (${company.status === "created" ? "created automatically" : "matched"})`
+        : `WARNING: no Shopify company attached, please attach it by hand (${companyProblem || "unknown reason"})`
     };
 
     let gmailAccessToken = null;

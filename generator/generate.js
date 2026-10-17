@@ -147,6 +147,8 @@ async function main() {
       customerEmail: c.contactEmail,
       intake: Boolean(c.intake),
       lockedTier: c.lockedTier,
+      contactName: c.contactFirstName,
+      companyName: c.shopifyCompany,
       monthLabel,
       slug: c.slug,
       logoPath,

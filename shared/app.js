@@ -337,6 +337,7 @@
           customerName: DATA.customerName,
           customerEmail: DATA.customerEmail,
           contactName: DATA.contactName || null,
+          companyName: DATA.companyName || null,
           newCustomer: Boolean(DATA.intake),
           monthLabel: DATA.monthLabel,
           tier,

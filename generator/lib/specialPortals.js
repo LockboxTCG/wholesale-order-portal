@@ -7,6 +7,8 @@
 // reminder.
 //
 //   logoFile    image in generator/assets/logos/, shown in the header
+//   shopifyCompany  name of the existing Shopify company orders attach to,
+//               when it differs from businessName
 //   lockedTier  "Starter" | "Growth" | "Volume": every order is priced at
 //               that tier from the first item, with no minimum to unlock it
 //
@@ -19,6 +21,7 @@ const SPECIAL_PORTALS = [
     contactEmail: "",
     logoUrl: "",
     logoFile: "metapod.jpg",
+    shopifyCompany: "ThatMetapodGuy",
     lockedTier: "Volume",
     priceOverridesRaw: ""
   }
