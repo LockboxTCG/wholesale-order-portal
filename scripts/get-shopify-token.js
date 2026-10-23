@@ -21,7 +21,7 @@ const CLIENT_ID = process.env.SHOPIFY_CLIENT_ID;
 const CLIENT_SECRET = process.env.SHOPIFY_CLIENT_SECRET;
 const PORT = 53683;
 const REDIRECT_URI = `http://localhost:${PORT}`;
-const SCOPES = "read_products,write_draft_orders,read_customers,write_customers,read_companies,write_companies";
+const SCOPES = "read_products,write_draft_orders,read_customers,write_customers,read_companies,write_companies,read_inventory";
 
 if (!SHOP || !CLIENT_ID || !CLIENT_SECRET) {
   console.error("Set SHOPIFY_SHOP, SHOPIFY_CLIENT_ID and SHOPIFY_CLIENT_SECRET env vars first.");
