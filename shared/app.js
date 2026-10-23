@@ -24,8 +24,18 @@
   // be ordered (null or missing = no limit). Empty until it loads, and stays
   // empty if the lookup fails; the server checks stock again on submit.
   let stock = {};
-  // At or below this many left, the product is flagged "Low stock".
-  const LOW_STOCK = 20;
+  // "Low stock" is flagged when fewer than this many are left, and the cut-off
+  // depends on the kind of product (matched on the product name, so a new
+  // product just falls into "everything else"):
+  //   50  sleeves, toploaders, matte sleeves, single acrylics
+  //   20  sealed-product cases (booster box, ETB, UPC, One Piece, Riftbound)
+  //   10  everything else
+  function lowStockThreshold(name) {
+    const n = normalizeName(name);
+    if (/booster box|\betb\b|\bupc\b|one piece|riftbound/.test(n)) return 20;
+    if (/sleeves|toploader|single acrylic/.test(n)) return 50;
+    return 10;
+  }
 
   // Product names ending in "– <Color>" (e.g. "Single Matte Sleeves – White")
   // get a small swatch dot next to the title. Unrecognized/absent colors
@@ -286,7 +296,7 @@
         ref.stockBadge.textContent = "Out of stock";
         ref.stockBadge.className = "stock-badge stock-badge--out";
         ref.stockBadge.hidden = false;
-      } else if (cap <= LOW_STOCK) {
+      } else if (cap < lowStockThreshold(ref.name)) {
         ref.stockBadge.textContent = "Low stock: " + cap + " left";
         ref.stockBadge.className = "stock-badge stock-badge--low";
         ref.stockBadge.hidden = false;
