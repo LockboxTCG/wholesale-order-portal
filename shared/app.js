@@ -10,6 +10,21 @@
 
   const IS_TOUCH = window.matchMedia("(pointer: coarse)").matches;
 
+  // Same name matching as api/_variants.js, so a product lines up with its
+  // stock entry whatever dash or spacing the Pricing Sheet uses.
+  function normalizeName(name) {
+    return String(name || "")
+      .replace(/\s*[\u2013\u2014-]\s*/g, " - ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+  }
+
+  // Live stock from /api/inventory: normalized product name -> most that can
+  // be ordered (null or missing = no limit). Empty until it loads, and stays
+  // empty if the lookup fails; the server checks stock again on submit.
+  let stock = {};
+
   // Product names ending in "– <Color>" (e.g. "Single Matte Sleeves – White")
   // get a small swatch dot next to the title. Unrecognized/absent colors
   // just render with no swatch, same as before this existed.
@@ -151,8 +166,12 @@
       const msrp = document.createElement("div");
       msrp.className = "row__msrp";
       msrp.textContent = "MSRP " + fmt(p.msrp);
+      const stockNote = document.createElement("div");
+      stockNote.className = "row__stock-note";
+      stockNote.setAttribute("role", "status");
       nameBlock.appendChild(nameTitle);
       nameBlock.appendChild(msrp);
+      nameBlock.appendChild(stockNote);
 
       const chips = document.createElement("div");
       chips.className = "row__chips";
@@ -198,7 +217,15 @@
         });
       }
       input.addEventListener("input", (e) => {
-        const v = Math.max(0, parseInt(e.target.value, 10) || 0);
+        let v = Math.max(0, parseInt(e.target.value, 10) || 0);
+        const cap = capFor(p.name);
+        if (cap !== null && v > cap) {
+          v = cap;
+          e.target.value = String(cap);
+          stockNote.textContent = "Only " + cap + " in stock";
+        } else if (cap !== 0) {
+          stockNote.textContent = "";
+        }
         state.qty[key] = v;
         render();
       });
@@ -214,7 +241,7 @@
       row.appendChild(total);
       inner.appendChild(row);
 
-      rowRefs[key] = { totalEl: total, chipEls, msrp: p.msrp, tiers: p.tiers, name: p.name };
+      rowRefs[key] = { totalEl: total, chipEls, msrp: p.msrp, tiers: p.tiers, name: p.name, input, stockNote };
     });
 
     card.appendChild(inner);
@@ -222,6 +249,66 @@
   });
 
   buildFeedbackCard();
+
+  // ---------- stock limits ----------
+
+  function capFor(name) {
+    const n = stock[normalizeName(name)];
+    return typeof n === "number" ? n : null;
+  }
+
+  // Apply the current stock to every row: sold-out items are disabled, and any
+  // quantity already above what's available is brought down to it.
+  function applyStock() {
+    let changed = false;
+    Object.keys(rowRefs).forEach((key) => {
+      const ref = rowRefs[key];
+      const cap = capFor(ref.name);
+      if (cap === null) {
+        ref.input.disabled = false;
+        ref.input.removeAttribute("max");
+        ref.stockNote.textContent = "";
+        return;
+      }
+      ref.input.max = String(cap);
+      ref.input.disabled = cap === 0;
+      if (cap === 0) {
+        ref.stockNote.textContent = "Out of stock";
+      } else if (ref.stockNote.textContent === "Out of stock") {
+        ref.stockNote.textContent = "";
+      }
+      if ((state.qty[key] || 0) > cap) {
+        state.qty[key] = cap;
+        ref.input.value = String(cap);
+        ref.stockNote.textContent = cap === 0 ? "Out of stock" : "Only " + cap + " in stock";
+        changed = true;
+      }
+    });
+    if (changed) render();
+  }
+
+  async function loadStock() {
+    try {
+      const res = await fetch("/api/inventory", { cache: "no-store" });
+      const data = await res.json();
+      if (res.ok && data.ok && data.stock) {
+        stock = data.stock;
+        applyStock();
+      }
+    } catch (e) {
+      /* no limits shown; the server still checks on submit */
+    }
+  }
+
+  loadStock();
+  // A page left open all day: refresh when the tab comes back into view.
+  let lastStockAt = Date.now();
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && Date.now() - lastStockAt > 5 * 60 * 1000) {
+      lastStockAt = Date.now();
+      loadStock();
+    }
+  });
 
   els.submitBtn.addEventListener("click", submitOrder);
 
@@ -361,6 +448,8 @@
       openOrderModal(order);
     } catch (err) {
       state.error = err.message || "Something went wrong sending your order.";
+      // Rejected for stock: pull the latest levels so the quantity boxes catch up.
+      if (/not enough stock/i.test(state.error)) loadStock();
     } finally {
       state.submitting = false;
       render();

@@ -1,27 +1,11 @@
 "use strict";
 
-const VARIANTS = require("./shopifyVariants.json");
+const { normalizeName, VARIANT_BY_NAME } = require("./_variants");
+const { getStockByVariant } = require("./_inventory");
 const { requireEnv, buildEmail, getGmailAccessToken, gmailSend } = require("./_gmail");
 const { resolveCompany } = require("./_shopifyCompany");
 
 const EMAIL_RE = /^[^\s@<>,;]+@[^\s@<>,;]+\.[^\s@<>,;]+$/;
-
-// Match product names ignoring dash style (a typed hyphen vs the long dash),
-// missing or repeated spaces around a dash, and letter case, so a hand-edited
-// name in the Pricing Sheet can't silently stop matching its Shopify variant.
-function normalizeName(name) {
-  return String(name || "")
-    .replace(/\s*[\u2013\u2014-]\s*/g, " - ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .toLowerCase();
-}
-
-const VARIANT_BY_NAME = new Map(
-  Object.entries(VARIANTS)
-    .filter(([name]) => !name.startsWith("_"))
-    .map(([name, id]) => [normalizeName(name), id])
-);
 
 function fmt(n) {
   return "$" + n.toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -158,6 +142,7 @@ module.exports = async (req, res) => {
   }
 
   const lineItems = [];
+  const lineNames = [];
   for (const i of items) {
     const qty = Number(i.qty) || 0;
     if (qty <= 0) continue;
@@ -172,6 +157,7 @@ module.exports = async (req, res) => {
     // truth for what this customer actually owes. A variant-based line item
     // ignores plain "originalUnitPrice" and uses the variant's own price
     // unless a priceOverride is set explicitly.
+    lineNames.push(String(i.name));
     lineItems.push({
       variantId,
       quantity: qty,
@@ -211,6 +197,41 @@ module.exports = async (req, res) => {
       if (!r.ok || json.errors) throw new Error(JSON.stringify(json.errors || json));
       return json.data;
     };
+
+    // Hard stop on stock: nothing above what is available can be ordered.
+    // Quantities are summed per Shopify variant (the renamed matte sleeve
+    // names point at the same variant). If Shopify can't be asked, the order
+    // goes through and the alert says stock wasn't verified, so a Shopify
+    // hiccup never blocks a customer.
+    let stockWarning = "";
+    let overStock = [];
+    try {
+      const stock = await getStockByVariant(gql, lineItems.map((l) => l.variantId));
+      const wanted = new Map();
+      lineItems.forEach((l) => wanted.set(l.variantId, (wanted.get(l.variantId) || 0) + l.quantity));
+      const seen = new Set();
+      lineItems.forEach((l, idx) => {
+        const available = stock.get(l.variantId);
+        if (seen.has(l.variantId) || typeof available !== "number") return;
+        seen.add(l.variantId);
+        if (wanted.get(l.variantId) > available) {
+          overStock.push({ name: lineNames[idx], available });
+        }
+      });
+    } catch (stockErr) {
+      stockWarning = "Stock was NOT checked for this order (" + (stockErr.message || stockErr) + ")";
+      console.error("Stock check failed (order will go through unchecked):", stockErr);
+    }
+    if (overStock.length > 0) {
+      const list = overStock
+        .map((o) => `${o.name} (${o.available > 0 ? "only " + o.available + " available" : "out of stock"})`)
+        .join(", ");
+      res.status(409).json({
+        ok: false,
+        error: `Not enough stock for: ${list}. Please lower the quantity and send again.`
+      });
+      return;
+    }
 
     // Attach the order to the customer's Shopify company (found, or created
     // if they have none). Anything going wrong here must never lose the
@@ -299,6 +320,7 @@ module.exports = async (req, res) => {
         ? `Shopify company: ${company.companyName} (${company.status === "created" ? "created automatically" : "matched"})`
         : `WARNING: no Shopify company attached, please attach it by hand (${companyProblem || "unknown reason"})`
     };
+    if (stockWarning) notifyArgs.companyLine += "\n" + stockWarning;
 
     let gmailAccessToken = null;
     try {

@@ -508,6 +508,23 @@ input[type="number"]::-webkit-inner-spin-button {
   color: #B3472A;
 }
 
+.row__stock-note {
+  margin-top: 4px;
+  font: var(--fw-semibold) var(--fs-body-xs)/1.2 var(--font-body);
+  color: #B3472A;
+}
+
+.row__stock-note:empty {
+  display: none;
+}
+
+.row__qty input:disabled {
+  background: var(--cream-100);
+  color: var(--text-muted);
+  border-color: var(--outline-soft);
+  cursor: not-allowed;
+}
+
 .row__name-link {
   color: inherit;
   text-decoration: underline;
