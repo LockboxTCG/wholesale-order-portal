@@ -3,7 +3,7 @@
 // Live stock for the portal's products, read from Shopify.
 //
 // The number that counts is "available" at the location wholesale orders
-// ship from (Canada by default; override with STOCK_LOCATION_NAME). Available
+// ship from (Canada by default; override with STOCK_LOCATION_ID). Available
 // is on-hand minus what is already committed to open orders, so it matches
 // what the storefront would let someone buy. USA stock is not counted unless
 // that location is configured.
@@ -20,7 +20,7 @@ const STOCK_QUERY = `
           tracked
           inventoryLevels(first: 10) {
             nodes {
-              location { name }
+              location { id }
               quantities(names: ["available"]) { name quantity }
             }
           }
@@ -30,15 +30,20 @@ const STOCK_QUERY = `
   }
 `;
 
-function locationName() {
-  return process.env.STOCK_LOCATION_NAME || "Canada Shop Location";
+// Matched by ID: reading a location's name needs an extra permission, its ID
+// doesn't. Canada Shop Location by default; STOCK_LOCATION_ID overrides it
+// (a full "gid://shopify/Location/..." id).
+const CANADA_LOCATION_ID = "gid://shopify/Location/86249373935";
+
+function locationId() {
+  return process.env.STOCK_LOCATION_ID || CANADA_LOCATION_ID;
 }
 
 // gql(query, variables) -> data, throwing on transport or GraphQL errors.
 async function getStockByVariant(gql, variantIds) {
   const ids = [...new Set(variantIds)];
   const data = await gql(STOCK_QUERY, { ids });
-  const where = locationName().toLowerCase();
+  const where = locationId();
   const stock = new Map();
   for (const node of data.nodes) {
     if (!node) continue;
@@ -47,11 +52,11 @@ async function getStockByVariant(gql, variantIds) {
       stock.set(node.id, null);
       continue;
     }
-    const level = item.inventoryLevels.nodes.find((l) => String(l.location.name).toLowerCase() === where);
+    const level = item.inventoryLevels.nodes.find((l) => l.location.id === where);
     const available = level && level.quantities.find((q) => q.name === "available");
     stock.set(node.id, available ? Math.max(0, available.quantity) : 0);
   }
   return stock;
 }
 
-module.exports = { getStockByVariant, locationName };
+module.exports = { getStockByVariant, locationId };
