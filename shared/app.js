@@ -27,12 +27,13 @@
   // "Low stock" is flagged when fewer than this many are left, and the cut-off
   // depends on the kind of product (matched on the product name, so a new
   // product just falls into "everything else"):
-  //   50  sleeves, toploaders, matte sleeves, single acrylics
+  //   50  sleeves, toploaders, matte sleeves, single acrylics (not the PSA ones)
   //   20  sealed-product cases (booster box, ETB, UPC, One Piece, Riftbound)
   //   10  everything else
   function lowStockThreshold(name) {
     const n = normalizeName(name);
     if (/booster box|\betb\b|\bupc\b|one piece|riftbound/.test(n)) return 20;
+    if (/\bpsa\b/.test(n)) return 10;
     if (/sleeves|toploader|single acrylic/.test(n)) return 50;
     return 10;
   }
