@@ -40,6 +40,6 @@ module.exports = async (req, res) => {
     console.error("inventory lookup failed:", err);
     // The page treats a failure as "no limits shown"; orders are still checked
     // on submit.
-    res.status(502).json({ ok: false, error: "Stock levels unavailable", reason: String(err.message || err).slice(0, 300) });
+    res.status(502).json({ ok: false, error: "Stock levels unavailable" });
   }
 };
