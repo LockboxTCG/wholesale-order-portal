@@ -24,6 +24,8 @@
   // be ordered (null or missing = no limit). Empty until it loads, and stays
   // empty if the lookup fails; the server checks stock again on submit.
   let stock = {};
+  // At or below this many left, the product is flagged "Low stock".
+  const LOW_STOCK = 20;
 
   // Product names ending in "– <Color>" (e.g. "Single Matte Sleeves – White")
   // get a small swatch dot next to the title. Unrecognized/absent colors
@@ -166,11 +168,15 @@
       const msrp = document.createElement("div");
       msrp.className = "row__msrp";
       msrp.textContent = "MSRP " + fmt(p.msrp);
+      const stockBadge = document.createElement("div");
+      stockBadge.className = "stock-badge";
+      stockBadge.hidden = true;
       const stockNote = document.createElement("div");
       stockNote.className = "row__stock-note";
       stockNote.setAttribute("role", "status");
       nameBlock.appendChild(nameTitle);
       nameBlock.appendChild(msrp);
+      nameBlock.appendChild(stockBadge);
       nameBlock.appendChild(stockNote);
 
       const chips = document.createElement("div");
@@ -241,7 +247,7 @@
       row.appendChild(total);
       inner.appendChild(row);
 
-      rowRefs[key] = { totalEl: total, chipEls, msrp: p.msrp, tiers: p.tiers, name: p.name, input, stockNote };
+      rowRefs[key] = { totalEl: total, chipEls, msrp: p.msrp, tiers: p.tiers, name: p.name, input, stockNote, stockBadge, row };
     });
 
     card.appendChild(inner);
@@ -268,19 +274,34 @@
         ref.input.disabled = false;
         ref.input.removeAttribute("max");
         ref.stockNote.textContent = "";
+        ref.stockBadge.hidden = true;
+        ref.row.classList.remove("row--soldout");
         return;
       }
       ref.input.max = String(cap);
       ref.input.disabled = cap === 0;
+      ref.row.classList.toggle("row--soldout", cap === 0);
+      // Badge beside the product: sold out, or running low.
       if (cap === 0) {
-        ref.stockNote.textContent = "Out of stock";
+        ref.stockBadge.textContent = "Out of stock";
+        ref.stockBadge.className = "stock-badge stock-badge--out";
+        ref.stockBadge.hidden = false;
+      } else if (cap <= LOW_STOCK) {
+        ref.stockBadge.textContent = "Low stock: " + cap + " left";
+        ref.stockBadge.className = "stock-badge stock-badge--low";
+        ref.stockBadge.hidden = false;
+      } else {
+        ref.stockBadge.hidden = true;
+      }
+      if (cap === 0) {
+        ref.stockNote.textContent = "";
       } else if (ref.stockNote.textContent === "Out of stock") {
         ref.stockNote.textContent = "";
       }
       if ((state.qty[key] || 0) > cap) {
         state.qty[key] = cap;
         ref.input.value = String(cap);
-        ref.stockNote.textContent = cap === 0 ? "Out of stock" : "Only " + cap + " in stock";
+        ref.stockNote.textContent = cap === 0 ? "" : "Only " + cap + " in stock";
         changed = true;
       }
     });

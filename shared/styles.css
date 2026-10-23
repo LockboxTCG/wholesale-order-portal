@@ -508,6 +508,42 @@ input[type="number"]::-webkit-inner-spin-button {
   color: #B3472A;
 }
 
+.stock-badge {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font: var(--fw-bold) var(--fs-body-xs)/1.2 var(--font-label);
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.stock-badge[hidden] {
+  display: none;
+}
+
+.stock-badge--out {
+  background: #F6DAD2;
+  color: #8E2F18;
+  border: var(--stroke-thin) solid #E3A898;
+}
+
+.stock-badge--low {
+  background: var(--gold-100);
+  color: var(--brown-700);
+  border: var(--stroke-thin) solid var(--gold-400);
+}
+
+/* Sold out: the row stays readable but clearly unavailable. */
+.row--soldout .row__chips,
+.row--soldout .row__total {
+  opacity: .45;
+}
+
+.row--soldout .row__name-title {
+  color: var(--text-muted);
+}
+
 .row__stock-note {
   margin-top: 4px;
   font: var(--fw-semibold) var(--fs-body-xs)/1.2 var(--font-body);
