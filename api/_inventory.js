@@ -8,6 +8,12 @@
 // what the storefront would let someone buy. USA stock is not counted unless
 // that location is configured.
 //
+// Draft orders don't draw stock down in Shopify until they're completed, so
+// what's sitting in open drafts (open or invoice sent, whoever made them) is
+// subtracted too. Once a draft is paid and completed, Shopify itself commits
+// the stock and the draft stops counting, so nothing is counted twice. A draft
+// that is never completed or deleted holds its stock until someone does.
+//
 // Result per variant: a whole number, or null when Shopify isn't tracking
 // that item (no limit). A variant with no stock record at the location is 0.
 
@@ -39,7 +45,39 @@ function locationId() {
   return process.env.STOCK_LOCATION_ID || CANADA_LOCATION_ID;
 }
 
+const OPEN_DRAFTS_QUERY = `
+  query($after: String) {
+    draftOrders(first: 100, after: $after, query: "status:open OR status:invoice_sent") {
+      nodes {
+        lineItems(first: 100) { nodes { quantity variant { id } } }
+      }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+`;
+
+// variant id -> total quantity sitting in open draft orders
+async function getReservedByVariant(gql) {
+  const reserved = new Map();
+  let after = null;
+  for (let page = 0; page < 10; page++) {
+    const data = await gql(OPEN_DRAFTS_QUERY, { after });
+    for (const draft of data.draftOrders.nodes) {
+      for (const li of draft.lineItems.nodes) {
+        if (!li.variant) continue;
+        reserved.set(li.variant.id, (reserved.get(li.variant.id) || 0) + li.quantity);
+      }
+    }
+    if (!data.draftOrders.pageInfo.hasNextPage) break;
+    after = data.draftOrders.pageInfo.endCursor;
+  }
+  return reserved;
+}
+
 // gql(query, variables) -> data, throwing on transport or GraphQL errors.
+// Returns { stock: Map(variantId -> number|null), reservationsApplied }.
+// If the open-drafts lookup fails the numbers are Shopify's available only
+// (reservationsApplied false) rather than failing the whole lookup.
 async function getStockByVariant(gql, variantIds) {
   const ids = [...new Set(variantIds)];
   const data = await gql(STOCK_QUERY, { ids });
@@ -56,7 +94,18 @@ async function getStockByVariant(gql, variantIds) {
     const available = level && level.quantities.find((q) => q.name === "available");
     stock.set(node.id, available ? Math.max(0, available.quantity) : 0);
   }
-  return stock;
+
+  let reservationsApplied = true;
+  try {
+    const reserved = await getReservedByVariant(gql);
+    for (const [id, qty] of stock) {
+      if (typeof qty === "number") stock.set(id, Math.max(0, qty - (reserved.get(id) || 0)));
+    }
+  } catch (err) {
+    reservationsApplied = false;
+    console.error("Could not read open draft orders (stock not reduced for them):", err);
+  }
+  return { stock, reservationsApplied };
 }
 
 module.exports = { getStockByVariant, locationId };

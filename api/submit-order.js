@@ -206,7 +206,10 @@ module.exports = async (req, res) => {
     let stockWarning = "";
     let overStock = [];
     try {
-      const stock = await getStockByVariant(gql, lineItems.map((l) => l.variantId));
+      const { stock, reservationsApplied } = await getStockByVariant(gql, lineItems.map((l) => l.variantId));
+      if (!reservationsApplied) {
+        stockWarning = "Stock was checked WITHOUT subtracting open draft orders (couldn't read them)";
+      }
       const wanted = new Map();
       lineItems.forEach((l) => wanted.set(l.variantId, (wanted.get(l.variantId) || 0) + l.quantity));
       const seen = new Set();

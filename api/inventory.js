@@ -28,7 +28,7 @@ module.exports = async (req, res) => {
       return json.data;
     };
 
-    const byVariant = await getStockByVariant(gql, [...VARIANT_BY_NAME.values()]);
+    const { stock: byVariant } = await getStockByVariant(gql, [...VARIANT_BY_NAME.values()]);
     const stock = {};
     for (const [name, variantId] of VARIANT_BY_NAME) {
       stock[name] = byVariant.has(variantId) ? byVariant.get(variantId) : null;
