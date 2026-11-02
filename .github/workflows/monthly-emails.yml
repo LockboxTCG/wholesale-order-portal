@@ -10,6 +10,13 @@ on:
     # Monday" directly. A scheduled run always attempts both; on most
     # Mondays neither one does anything.
     - cron: "0 14 * * 1"
+    # One-time: the November send was moved to Nov 3 from 10:00 ET (15:00 UTC)
+    # because the Nov 2 run never started. GitHub can start a scheduled run
+    # hours late, so this fires hourly through the day; the send script only
+    # sends from 15:00 UTC and once a month (a run that finds the month already
+    # sent exits quietly), and the concurrency group below keeps runs from
+    # overlapping. Harmless to leave: it never matches again.
+    - cron: "0 15-23 3 11 *"
   workflow_dispatch:
     inputs:
       mode:
@@ -25,6 +32,12 @@ on:
 
 permissions:
   contents: write
+
+# One email run at a time. A second run waits for the first to finish and
+# commit its thread state, so it sees that the month was already sent.
+concurrency:
+  group: monthly-emails
+  cancel-in-progress: false
 
 jobs:
   email:
@@ -68,6 +81,7 @@ jobs:
           mkdir -p state
           git add state/
           git diff --cached --quiet && echo "Nothing to commit" || git commit -m "Record email thread state for $(date +%Y-%m)"
+          git pull --rebase origin main
           git push
 
       - name: Send reminders

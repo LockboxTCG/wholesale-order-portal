@@ -52,6 +52,13 @@ async function main() {
   const statePath = path.join(ROOT, "state", "email-threads", `${key}.json`);
 
   if (fs.existsSync(statePath) && !process.env.FORCE) {
+    // A scheduled run that finds the month already sent is the normal case
+    // when several runs are queued for the same day: exit quietly. A manual
+    // run stays loud so nobody thinks it sent twice.
+    if (process.env.GITHUB_EVENT_NAME === "schedule") {
+      console.log(`Monthly emails for ${key} were already sent (${statePath} exists); nothing to do.`);
+      return;
+    }
     throw new Error(
       `${statePath} already exists — monthly emails for ${key} appear to have already been sent. ` +
         "Set FORCE=1 to send again anyway (this will email every customer a second time)."
