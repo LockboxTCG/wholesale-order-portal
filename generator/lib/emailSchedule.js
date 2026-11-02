@@ -21,9 +21,15 @@
 
 const TRANSITION_FLOOR = new Date("2026-09-28T00:00:00Z");
 
-const ONE_TIME_SEND_DATES = ["2026-09-28"];
+const ONE_TIME_SEND_DATES = ["2026-09-28", "2026-11-03"];
 const ONE_TIME_REMIND_DATES = ["2026-10-12"];
-const SUPERSEDED_DATES = ["2026-10-05", "2026-10-19"];
+// 2026-11-02 was the first Monday, but GitHub started the scheduled run
+// about 9 hours late, so the send was moved to the next morning on purpose
+// (agreed with the business) rather than going out in the evening.
+const SUPERSEDED_DATES = ["2026-10-05", "2026-10-19", "2026-11-02"];
+// A one-time send date that only opens at this UTC hour, so a late scheduled
+// run can't send it early. 15:00 UTC is 10:00 ET in winter time.
+const ONE_TIME_SEND_NOT_BEFORE_UTC_HOUR = { "2026-11-03": 15 };
 
 function dateKey(date) {
   return date.toISOString().slice(0, 10);
@@ -36,7 +42,10 @@ function isMonday(date) {
 function isSendDay(date = new Date()) {
   if (date < TRANSITION_FLOOR) return false;
   const key = dateKey(date);
-  if (ONE_TIME_SEND_DATES.includes(key)) return true;
+  if (ONE_TIME_SEND_DATES.includes(key)) {
+    const notBefore = ONE_TIME_SEND_NOT_BEFORE_UTC_HOUR[key];
+    return notBefore === undefined || date.getUTCHours() >= notBefore;
+  }
   if (SUPERSEDED_DATES.includes(key)) return false;
   const day = date.getUTCDate();
   return isMonday(date) && day >= 1 && day <= 7;
