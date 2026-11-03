@@ -24,6 +24,7 @@ const { isSendDay } = require("./lib/emailSchedule");
 const { rewriteEmailBody } = require("./lib/rewriteEmail");
 const { buildMonthlySubject, buildTokenizedBody, fillTokens } = require("./lib/monthlyEmail");
 const { sendInBatches } = require("./lib/batchSend");
+const { WINDOW_DAYS, fetchRecentActivity, splitByActivity, describeRows } = require("./lib/recentActivity");
 
 const ROOT = path.join(__dirname, "..");
 const BATCH_SIZE = 5;
@@ -104,13 +105,38 @@ async function main() {
     fs.writeFileSync(statePath, JSON.stringify(state, null, 2) + "\n");
   }
 
-  const emailableCustomers = customers.filter((c) => {
+  const withEmail = customers.filter((c) => {
     if (!c.contactEmail) {
       console.warn(`Skipping "${c.businessName}" — no contact email on file.`);
       return false;
     }
     return true;
   });
+
+  // Anyone who ordered, or has a draft order going, in the last 14 days is
+  // left out. If the check can't be done the run fails (the hourly cron or a
+  // manual rerun tries again) rather than emailing people who should be
+  // skipped. SKIP_ACTIVITY_CHECK=1 turns it off for a deliberate manual send.
+  let emailableCustomers = withEmail;
+  if (process.env.SKIP_ACTIVITY_CHECK) {
+    console.warn("SKIP_ACTIVITY_CHECK is set: NOT skipping recent orderers.");
+  } else {
+    const activity = await fetchRecentActivity({
+      siteOrigin: SITE_ORIGIN,
+      clientSecret: requireEnv("GMAIL_CLIENT_SECRET"),
+      days: WINDOW_DAYS
+    });
+    console.log(
+      `Recent activity (last ${WINDOW_DAYS} days): ${activity.activity.length} orders/drafts` +
+        (activity.ordersChecked ? "." : ` — plain orders NOT checked (${activity.ordersError}); drafts only.`)
+    );
+    const { send, skipped } = splitByActivity(withEmail, activity.activity, PORTAL_SLUG_SECRET);
+    emailableCustomers = send;
+    for (const s of skipped) {
+      console.log(`Skipping "${s.customer.businessName}" — recent activity: ${describeRows(s.rows)}`);
+    }
+    await notifySkipped(skipped, activity.ordersChecked);
+  }
 
   console.log(
     `Sending to ${emailableCustomers.length} customers in batches of ${BATCH_SIZE}, ` +
@@ -152,6 +178,24 @@ async function main() {
 
   persistState();
   console.log(`\nWrote ${statePath} (${Object.keys(state).length} threads recorded).`);
+}
+
+// Tell Slack who was left out and why, so nobody wonders. Never blocks the send.
+async function notifySkipped(skipped, ordersChecked) {
+  const url = process.env.SLACK_WEBHOOK_URL;
+  if (!url) return;
+  const lines = skipped.length
+    ? skipped.map((s) => `• ${s.customer.businessName} — ${describeRows(s.rows)}`).join("\n")
+    : "Nobody — no one in the directory had recent activity.";
+  const text =
+    `:email: *Monthly email: skipped ${skipped.length} customer(s)* with an order or draft order in the last ${WINDOW_DAYS} days\n` +
+    lines +
+    (ordersChecked ? "" : "\n_Plain Shopify orders couldn't be checked, only draft orders._");
+  try {
+    await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
+  } catch (err) {
+    console.error("Could not post the skipped list to Slack:", err.message);
+  }
 }
 
 function requireEnv(name) {
