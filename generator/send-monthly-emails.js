@@ -37,7 +37,7 @@ function monthKey(date) {
 async function main() {
   const now = new Date();
 
-  if (!isSendDay(now)) {
+  if (!process.env.DRY_RUN && !isSendDay(now)) {
     console.log(
       `Today (${now.toISOString()}) is not a scheduled send day — not sending anything, ` +
         "regardless of how this run was triggered. See generator/lib/emailSchedule.js for the rule."
@@ -52,7 +52,7 @@ async function main() {
   const key = monthKey(now);
   const statePath = path.join(ROOT, "state", "email-threads", `${key}.json`);
 
-  if (fs.existsSync(statePath) && !process.env.FORCE) {
+  if (fs.existsSync(statePath) && !process.env.FORCE && !process.env.DRY_RUN) {
     // A scheduled run that finds the month already sent is the normal case
     // when several runs are queued for the same day: exit quietly. A manual
     // run stays loud so nobody thinks it sent twice.
@@ -136,6 +136,11 @@ async function main() {
       console.log(`Skipping "${s.customer.businessName}" — recent activity: ${describeRows(s.rows)}`);
     }
     await notifySkipped(skipped, activity.ordersChecked);
+  }
+
+  if (process.env.DRY_RUN) {
+    console.log(`\nDRY RUN: would send to ${emailableCustomers.length}: ${emailableCustomers.map((c) => c.businessName).join(", ")}`);
+    return;
   }
 
   console.log(
